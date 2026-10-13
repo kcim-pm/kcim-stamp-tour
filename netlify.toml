@@ -1,7 +1,9 @@
-# Netlify 빌드 설정. Next.js는 Netlify가 자동으로 감지해 런타임 플러그인을 붙인다.
+# Netlify 빌드 설정. Next.js 런타임 플러그인을 명시해 서버 기능(API, 동적 페이지)을 켠다.
 [build]
   command = "npm run build"
-  publish = ".next"
 
 [build.environment]
   NODE_VERSION = "22"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
