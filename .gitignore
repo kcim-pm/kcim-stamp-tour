@@ -1,0 +1,24 @@
+# 의존성
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Netlify
+.netlify/
+
+# 환경변수와 비밀 값
+.env
+.env.*
+!.env.example
+
+# 테스트·빌드 산출물
+coverage/
+*.tsbuildinfo
+
+# 편집기·OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
