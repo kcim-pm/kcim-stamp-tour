@@ -1,0 +1,7 @@
+# Netlify 빌드 설정. Next.js는 Netlify가 자동으로 감지해 런타임 플러그인을 붙인다.
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
