@@ -219,7 +219,7 @@ alter table draw_winners enable row level security;
 
 - 완주 여부와 응모 여부는 따로 저장하지 않는다. `visits`에서 참가번호별 방문 구역 수가 `zones`의 전체 수와 같으면 완주이자 응모다.
 - 「당첨자」는 `draw_winners.status = 'confirmed'`인 행이다. `absent` 행은 기록을 위해 남기고 당첨자로 세지 않는다.
-- 구역과 경품 초기 데이터는 `supabase/seed.sql`에 둔다. `qr_token`은 생성 방법을 7.5에 적는다.
+- 구역과 경품 초기 데이터는 `supabase/seed.sql`에 둔다. `qr_token`은 seed.sql에서 `gen_random_uuid()`로 만든다(32자 16진수).
 
 ---
 
@@ -443,7 +443,7 @@ truncate table draw_winners, draws, visits, participants restart identity;
 ### 7.5 로컬 개발 절차
 
 1. 저장소를 받고 `npm install`을 실행한다.
-2. 아래 명령으로 무작위 문자열을 만들어 `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`, 구역 5개의 `qr_token`에 하나씩 쓴다.
+2. 아래 명령을 두 번 실행해 `ADMIN_PASSWORD`와 `ADMIN_SESSION_SECRET` 값을 만든다.
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
@@ -451,7 +451,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 
 3. `.env.local`에 7.4의 환경변수 4개를 채운다. Supabase 값은 대시보드의 Project Settings → API에서 복사한다.
 4. 테이블을 만든다. Supabase 대시보드(웹사이트)에 로그인해 왼쪽 메뉴 「SQL Editor」를 열고, `supabase/migrations/0001_init.sql`(4장의 SQL)을 붙여 넣어 Run을 누른다. 한 번만 하면 된다.
-5. 초기 데이터를 넣는다. 같은 SQL Editor에서 `supabase/seed.sql`(구역 5개와 임시 경품 목록, 2번에서 만든 토큰 포함)을 붙여 넣어 Run을 누른다.
+5. 초기 데이터를 넣는다. 같은 SQL Editor에서 `supabase/seed.sql`(구역 5개와 임시 경품 목록)을 붙여 넣어 Run을 누른다. 구역의 `qr_token`은 SQL 안에서 `gen_random_uuid()`로 자동 생성되므로, 실행 결과나 Table Editor의 `zones`에서 값을 확인한다.
 6. `npm test`로 단위 테스트가 통과하는지 확인한다.
 7. `npm run dev`로 띄우고 `http://localhost:3000/?z={토큰}`으로 참가자 화면을 확인한다.
 8. `http://localhost:3000/admin`에서 `ADMIN_PASSWORD` 값으로 로그인하고, [발표 화면 열기]로 `/admin/draw`가 새 창에 뜨는지 확인한다.
