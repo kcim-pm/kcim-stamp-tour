@@ -1,9 +1,26 @@
-// 참가자 화면 (docs/spec.md 3.2). 지금은 배포 확인용 샘플 텍스트만 보여 준다.
-export default function HomePage() {
-  return (
-    <main style={{ padding: "24px 16px", maxWidth: 480, margin: "0 auto" }}>
-      <h1 style={{ fontSize: 22 }}>KCIM BIMlize Con 2026 스탬프 투어</h1>
-      <p>배포 확인용 샘플 페이지입니다. 곧 참가자 화면으로 바뀝니다.</p>
-    </main>
-  );
+// / — 참가자 화면 (spec 3.2). 서버 컴포넌트.
+// 주소의 z 로 구역을 찾아 결과만 클라이언트 컴포넌트에 넘긴다. 나머지는 components/participant-screen.tsx.
+import { ParticipantScreen, type ZoneResult } from "@/components/participant-screen";
+import { findZoneByToken } from "@/lib/status-query";
+
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ z?: string }>;
+}) {
+  const { z } = await searchParams;
+
+  let zone: ZoneResult = { kind: "none" };
+  if (z) {
+    try {
+      const found = await findZoneByToken(z);
+      zone = found ? { kind: "valid", code: found.code, name: found.name } : { kind: "invalid" };
+    } catch (e) {
+      // DB 오류여도 화면은 떠야 한다. 잘못된 QR 안내로 대신한다.
+      console.error("[/] findZoneByToken", e);
+      zone = { kind: "invalid" };
+    }
+  }
+
+  return <ParticipantScreen zone={zone} zoneToken={z ?? null} />;
 }

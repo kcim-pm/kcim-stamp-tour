@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { normalizeParticipantNo } from "@/lib/participant-no";
 import { getSupabase } from "@/lib/supabase-server";
-import { loadStatus } from "@/lib/status-query";
+import { findZoneByToken, loadStatus } from "@/lib/status-query";
 
 export async function POST(request: NextRequest) {
   // 요청 내용이 JSON이 아니면 잘못된 요청으로 돌려준다.
@@ -28,12 +28,7 @@ export async function POST(request: NextRequest) {
 
   try {
     // QR 토큰과 같은 구역을 찾는다. 없는 토큰이면 없는 QR로 돌려준다.
-    const { data: zone, error: zoneError } = await supabase
-      .from("zones")
-      .select("id, code, name")
-      .eq("qr_token", zoneToken)
-      .maybeSingle();
-    if (zoneError) throw zoneError;
+    const zone = await findZoneByToken(zoneToken);
     if (!zone) {
       return NextResponse.json({ error: "INVALID_TOKEN" }, { status: 404 });
     }

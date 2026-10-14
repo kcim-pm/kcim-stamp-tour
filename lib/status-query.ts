@@ -21,6 +21,29 @@ export async function loadZones(): Promise<ZoneRow[]> {
   return data;
 }
 
+export type ZoneSummary = { id: number; code: string; name: string };
+
+// QR 토큰으로 구역 하나를 찾는다. 없으면 null. 참가자 화면(현재 위치)과 방문 인증 API 가 같이 쓴다.
+export async function findZoneByToken(token: string): Promise<ZoneSummary | null> {
+  const { data, error } = await getSupabase()
+    .from("zones")
+    .select("id, code, name")
+    .eq("qr_token", token)
+    .maybeSingle();
+  if (error) throw new DbError(error.message);
+  return data;
+}
+
+// QR 인쇄 전용. 일반 조회(loadZones)에는 토큰을 섞지 않는다.
+export async function loadZonesWithToken(): Promise<(ZoneRow & { qr_token: string })[]> {
+  const { data, error } = await getSupabase()
+    .from("zones")
+    .select("id, code, name, sort, qr_token")
+    .order("sort");
+  if (error) throw new DbError(error.message);
+  return data;
+}
+
 // 참가번호의 현황을 만든다. participants 에 행을 만들지 않는다.
 export async function loadStatus(participantNo: number): Promise<ParticipantStatus> {
   const zones = await loadZones();
