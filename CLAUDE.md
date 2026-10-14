@@ -12,6 +12,7 @@ KCIM BIMlize Con 2026(2026-10-27) 스탬프 투어·경품 추첨 모바일 웹.
 
 - **TDD.** 규칙은 `lib/` 순수 함수로 두고, 테스트(`tests/`, Vitest)를 먼저 쓴 뒤 구현한다. 대상은 spec.md 8.1 표. Route Handler와 화면은 수동 확인.
 - 요구사항 ID(P-xx, A-xx)와 결정 ID(D-xx)를 커밋 메시지와 PR에 적는다.
+- **브랜치.** 작업은 feature 브랜치에서 하고 PR의 Deploy Preview(Netlify 크레딧 0)로 확인한다. `main` 병합은 운영 배포라 크레딧을 쓰므로 사용자가 지시할 때만 한다.
 - 응답과 주석은 한국어.
 
 ## 지켜야 할 것
