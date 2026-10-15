@@ -164,7 +164,7 @@ QR 주소 형식: `https://bimlizecon2026.netlify.app/?z={구역 토큰}`
 | 규칙 | 내용 |
 |---|---|
 | 보호 대상 | `/admin`, `/admin/draw`, `/qr`과 관리자 API 전부. 세션 쿠키가 없거나 만료·위조되었으면 페이지는 `/admin/login?next={현재 경로}`로 보내고, API는 401 `UNAUTHORIZED`다 |
-| 로그인 뒤 이동 | `next`가 `/`로 시작하고 `//`로 시작하지 않을 때만 그 경로로 돌아간다. 아니면(외부 주소, 빈 값) `/admin`으로 보낸다 |
+| 로그인 뒤 이동 | `next`가 `/`로 시작하고 두 번째 글자가 `/`나 `\`가 아닐 때만 그 경로로 돌아간다. 아니면(외부 주소, 빈 값) `/admin`으로 보낸다. 브라우저는 `/\evil.com`을 `//evil.com`과 같은 외부 주소로 해석하므로 역슬래시도 막는다 |
 | 이미 로그인 상태 | 비밀번호를 묻지 않고 바로 `next`로 보낸다 |
 | 오류 문구 | 401이면 「비밀번호가 틀립니다」, 그 외 실패는 「연결에 실패했습니다. 다시 시도해 주세요」 |
 | 창 두 개 | 콘솔에서 [발표 화면 열기]로 연 새 창은 같은 쿠키를 쓰므로 다시 로그인하지 않는다 |
@@ -296,7 +296,7 @@ alter table draw_winners enable row level security;
 **`POST /api/admin/login`** 비밀번호를 확인하고 세션 쿠키를 발급한다.
 
 요청: `{ "password": "..." }`
-응답(204): `Set-Cookie: admin_session=<서명된 토큰>; HttpOnly; Secure; SameSite=Lax; Max-Age=43200` (12시간). 틀리면 401 `WRONG_PASSWORD`다.
+응답(204): `Set-Cookie: admin_session=<서명된 토큰>; HttpOnly; Secure; SameSite=Lax; Max-Age=43200` (12시간). 틀리면 401 `WRONG_PASSWORD`다. `Secure`는 운영 빌드에서만 붙인다. 로컬 개발(http)에서는 생략해야 쿠키가 저장된다.
 
 **`POST /api/admin/logout`** 세션 쿠키를 지운다. 응답은 204다.
 
@@ -485,7 +485,8 @@ Supabase CLI는 쓰지 않는다. SQL 파일을 대시보드에 붙여 넣는 �
 │  ├─ page.tsx               ← 참가자 화면 (서버: 토큰으로 구역 조회 → components/participant-screen 에 전달)
 │  ├─ admin/login/page.tsx   ← 관리자 로그인 (서버: next 검사, 로그인 상태면 바로 이동)
 │  ├─ admin/login/_components/admin-login-form.tsx ← 로그인 입력란·버튼 (클라이언트). 이 페이지만 쓰므로 페이지 옆에 둔다. `_` 폴더는 라우트가 되지 않는다
-│  ├─ admin/page.tsx         ← 관리자 콘솔
+│  ├─ admin/page.tsx         ← 관리자 콘솔 (서버: 로그인 보호 → 통계·목록은 클라이언트 컴포넌트)
+│  ├─ admin/_components/logout-button.tsx ← [로그아웃] 버튼 (클라이언트)
 │  ├─ admin/draw/page.tsx    ← 추첨·발표 화면 (전체 화면, 새 창)
 │  ├─ qr/page.tsx            ← QR 인쇄
 │  ├─ qr/_components/print-button.tsx ← [인쇄] 버튼 (클라이언트)
@@ -598,3 +599,4 @@ Route Handler와 화면은 단위 테스트 대상이 아니다. 8.2의 수동 �
 | 2026-10-14 | 참가자 화면 디자인 확정(디자인 캔버스 「E 최종」): 3.2 카드 문구를 짧게 고치고 현재 위치 카드 가운데 정렬, 구역 목록을 S자 경로 위 입체 스탬프로, 완주 카드를 입체로. 7.6에 `app/globals.css`, `components/`, `lib/status.ts`, `lib/status-query.ts` 추가 |
 | 2026-10-14 | D-07 수정 반영: [다른 번호로 조회] 버튼 삭제(3.2 카드 6, 동작 규칙, 8.2). 「추첨 응모 완료」 배지를 경로 아래 가운데로 |
 | 2026-10-15 | 로그인 페이지를 `/admin/login`으로 분리: 3.1 행 추가, 3.3·3.4·3.5 이동 규칙 수정, 3.6 신설(보호 대상, `next` 경로 규칙, 창 두 개). 7.5 절차 8 수정. 7.6에 `admin/login/page.tsx`, `admin/login/_components/`, `lib/admin-session.ts` 추가, `components/`는 공용 컴포넌트만(`print-button.tsx`를 `qr/_components/`로 이동) |
+| 2026-10-15 | 3.6 `next` 경로 규칙에 역슬래시 차단 추가. 로컬에서 `next=/%5Cevil.com`이 외부로 이동하는 것을 재현해 확인. 5.3 `Secure`는 운영 빌드에서만. 7.6에 `admin/_components/logout-button.tsx` 추가 |

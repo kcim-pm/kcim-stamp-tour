@@ -1,17 +1,30 @@
-// /admin/login — 관리자 로그인 페이지 (서버 컴포넌트)
-//
-// 역할: 주소의 next 값을 검사해서 넘기고, 이미 로그인돼 있으면 바로 보낸다.
+// /admin/login — 관리자 로그인 페이지 (spec 3.6). 서버 컴포넌트.
+// 주소의 next 값을 검사해서 넘기고, 이미 로그인돼 있으면 바로 보낸다.
 // 입력란·fetch 같은 상호작용은 ./_components/admin-login-form.tsx(클라이언트)가 맡는다.
-// app/page.tsx 가 토큰을 찾아 participant-screen 에 넘기는 구조와 같다.
+import { redirect } from "next/navigation";
+import { safeNextPath } from "@/lib/auth";
+import { isAdminLoggedIn } from "@/lib/admin-session";
+import { AdminLoginForm } from "./_components/admin-login-form";
 
-// searchParams: Promise<{ next?: string }>  (Next 16 은 await 필요)
+export default async function AdminLoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string | string[] }>;
+}) {
+  const { next: rawNext } = await searchParams;
+  // 외부 주소면 "/admin" 으로 바뀐다. next 가 여러 번 오면 배열이므로 거부한다.
+  const next = safeNextPath(typeof rawNext === "string" ? rawNext : undefined);
 
-// 1. next = safeNextPath(searchParams.next)   ← 외부 주소면 "/admin" 으로 바뀐다
-// 2. 이미 로그인 상태(isAdminLoggedIn)면 redirect(next)
-//    - 로그인 페이지를 북마크해 두고 다시 열었을 때 비밀번호를 또 묻지 않는다
-// 3. 아니면 <AdminLoginForm next={next} /> 를 그린다
-//    - 제목 「관리자 로그인」, 안내 한 줄. 참가자 화면과 같은 globals.css 토큰·.card 를 쓴다
+  // 로그인 페이지를 북마크해 두고 다시 열었을 때 비밀번호를 또 묻지 않는다.
+  if (await isAdminLoggedIn()) redirect(next);
 
-export default function AdminLoginPage() {
-  return null; // 자리 표시자. 구현 시 교체
+  return (
+    <main className="screen">
+      <section className="card">
+        <h1 className="status-title">관리자 로그인</h1>
+        <p className="hint">운영 스태프에게 공유된 관리자 비밀번호를 입력하세요.</p>
+        <AdminLoginForm next={next} />
+      </section>
+    </main>
+  );
 }

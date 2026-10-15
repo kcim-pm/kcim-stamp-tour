@@ -1,28 +1,42 @@
 import "server-only";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { NextResponse } from "next/server";
+import { SESSION_COOKIE, verifySessionToken } from "./auth";
 
 // lib/admin-session.ts — 쿠키를 읽어 관리자 세션을 확인 (서버 전용, 테스트 대상 아님)
 //
 // lib/auth.ts(순수 함수)와 Next.js(쿠키·환경변수·redirect) 사이를 잇는 얇은 층.
 // status.ts(계산) / status-query.ts(DB 접근) 를 나눈 것과 같은 이유로 나눈다.
-// 페이지 3곳(/qr, /admin, /admin/draw)과 관리자 API 8개가 전부 이 파일을 부른다.
+// 페이지 3곳(/qr, /admin, /admin/draw)과 관리자 API 가 전부 이 파일을 부른다.
 
-// ── 환경변수 ──────────────────────────────────────────
-// ADMIN_SESSION_SECRET 을 읽는다. 비어 있으면 변수 이름을 밝히고 오류.
-// (supabase-server.ts 의 requireEnv 와 같은 방식)
+export function requireAdminEnv(name: "ADMIN_PASSWORD" | "ADMIN_SESSION_SECRET"): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`환경변수 ${name} 이(가) 비어 있다. .env.local 또는 Netlify 환경변수를 확인할 것`);
+  }
+  return value;
+}
 
-// ── 함수 1: 로그인 상태인가 ───────────────────────────
-// isAdminLoggedIn() → Promise<boolean>
-//   1. cookies() 에서 "admin_session" 을 읽는다. 없으면 false
-//   2. verifySessionToken(값, 비밀키, 현재 시각(초)) 결과를 돌려준다
+export function nowSeconds(): number {
+  return Math.floor(Date.now() / 1000);
+}
 
-// ── 함수 2: 페이지 보호 ───────────────────────────────
-// requireAdminPage(currentPath)
-//   로그인 상태가 아니면 redirect("/admin/login?next=" + encodeURIComponent(currentPath))
-//   로그인 상태면 아무것도 하지 않고 지나간다.
-//   서버 컴포넌트 맨 위에서 await 로 한 줄 부른다.
+export async function isAdminLoggedIn(): Promise<boolean> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  if (!token) return false;
+  return verifySessionToken(token, requireAdminEnv("ADMIN_SESSION_SECRET"), nowSeconds());
+}
 
-// ── 함수 3: API 보호 ──────────────────────────────────
-// requireAdminApi() → Promise<NextResponse | null>
-//   로그인 상태가 아니면 401 { error: "UNAUTHORIZED" } 응답을 돌려준다.
-//   로그인 상태면 null. Route Handler 는 `if (denied) return denied;` 한 줄로 쓴다.
-//   (내일 작업 7번의 관리자 API 8개가 쓴다. 오늘은 만들어만 둔다)
+// 서버 컴포넌트 맨 위에서 await 로 한 줄 부른다. 로그인 상태면 그냥 지나간다.
+export async function requireAdminPage(currentPath: string): Promise<void> {
+  if (!(await isAdminLoggedIn())) {
+    redirect(`/admin/login?next=${encodeURIComponent(currentPath)}`);
+  }
+}
+
+// Route Handler 는 `const denied = await requireAdminApi(); if (denied) return denied;` 로 쓴다.
+export async function requireAdminApi(): Promise<NextResponse | null> {
+  if (await isAdminLoggedIn()) return null;
+  return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+}

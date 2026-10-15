@@ -1,12 +1,10 @@
 import { headers } from "next/headers";
 import QRCode from "qrcode";
 import { PrintButton } from "./_components/print-button";
+import { requireAdminPage } from "@/lib/admin-session";
 import { loadZonesWithToken } from "@/lib/status-query";
 
-// /qr — QR 인쇄 페이지
-// [작업 3] 관리자 보호: QrPage 첫 줄에 `await requireAdminPage("/qr")` 한 줄을 넣는다.
-//   쿠키가 없거나 만료·위조면 /admin/login?next=%2Fqr 로 보내지고,
-//   로그인 뒤 다시 /qr 로 돌아온다. 나머지 코드는 바뀌지 않는다.
+// /qr — QR 인쇄 페이지 (spec 3.5). 관리자 로그인이 필요하다(3.6).
 
 // D-01 로 고정된 운영 주소. QR 에 들어가므로 환경변수가 아니라 상수로 둔다.
 const PRODUCTION_URL = "https://bimlizecon2026.netlify.app";
@@ -23,6 +21,9 @@ async function resolveSiteUrl(): Promise<{ url: string; isProduction: boolean }>
 }
 
 export default async function QrPage() {
+  // 쿠키가 없거나 만료·위조면 /admin/login?next=%2Fqr 로 보내지고, 로그인 뒤 다시 /qr 로 돌아온다.
+  await requireAdminPage("/qr");
+
   const [{ url: siteUrl, isProduction }, zones] = await Promise.all([resolveSiteUrl(), loadZonesWithToken()]);
   const sheets = await Promise.all(
     zones.map(async (z) => ({
