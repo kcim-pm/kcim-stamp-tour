@@ -1,10 +1,12 @@
 import { headers } from "next/headers";
 import QRCode from "qrcode";
-import { PrintButton } from "@/components/print-button";
+import { PrintButton } from "./_components/print-button";
 import { loadZonesWithToken } from "@/lib/status-query";
 
 // /qr — QR 인쇄 페이지
-// lib/auth 가 생기면 맨 위에서 관리자 세션을 검증하고 없으면 /admin 으로 redirect.
+// [작업 3] 관리자 보호: QrPage 첫 줄에 `await requireAdminPage("/qr")` 한 줄을 넣는다.
+//   쿠키가 없거나 만료·위조면 /admin/login?next=%2Fqr 로 보내지고,
+//   로그인 뒤 다시 /qr 로 돌아온다. 나머지 코드는 바뀌지 않는다.
 
 // D-01 로 고정된 운영 주소. QR 에 들어가므로 환경변수가 아니라 상수로 둔다.
 const PRODUCTION_URL = "https://bimlizecon2026.netlify.app";
