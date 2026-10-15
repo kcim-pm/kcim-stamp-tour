@@ -1,34 +1,58 @@
 // lib/admin-fetch.ts — 관리자 화면이 API 를 부를 때 쓰는 도우미 (브라우저 전용, 테스트 대상 아님)
 //
-// 의사 코드 (작업 8). 아직 구현 전이다.
-//
-// 【이 파일이 하는 일】
-//   콘솔과 발표 화면은 관리자 API 를 10곳 넘게 부른다. 부를 때마다 반복되는 일을 한 곳에 모은다.
-//   브라우저 전용이다. 401 일 때 브라우저 주소(window.location)를 바꾸므로 서버 코드에서 부르면 안 된다.
-//   화면 부품이 아니라서 components/ 가 아니라 lib/ 에 두고, 이 줄처럼 용도를 적는다 (spec 7.6).
-//
-// 【기능 1: API 부르기 (adminFetch)】
-//   주소와 요청 내용을 받아 API 를 부르고, 결과를 「성공 + 데이터」 또는 「실패 + 오류 코드」 둘 중 하나로 돌려준다.
-//   화면 코드는 이 두 경우만 다루면 된다.
-//   1. API 를 부른다. 네트워크가 끊겨 아예 응답을 못 받으면 → 실패, 코드 "NETWORK"
-//      ("NETWORK" 는 서버가 보내는 코드가 아니라 화면에서만 쓰는 값이다)
-//   2. 401 이면 로그인이 풀린 것이다(12시간 지남, 다른 창에서 로그아웃).
-//      로그인 페이지로 보낸다. 로그인 뒤 지금 보던 화면으로 돌아오도록 지금 주소를 next 로 붙인다 (spec 3.6).
-//   3. 204 면 본문 없이 성공.
-//   4. 그 밖의 성공(200, 201)이면 본문을 읽어 성공 + 데이터.
-//   5. 실패 응답이면 본문의 { "error": "코드" } 에서 코드를 꺼낸다.
-//      본문을 못 읽으면(서버가 오류 페이지를 돌려준 경우 등) "NETWORK" 로 본다.
-//
-// 【기능 2: 오류 코드를 화면 문구로 바꾸기 (errorMessage)】
-//   콘솔과 발표 화면이 같은 문구를 쓰도록 한 곳에서 정한다.
-//   - NETWORK                  → 연결에 실패했습니다. 다시 시도해 주세요 (spec 3.6 과 같은 문구)
-//   - ALREADY_GIVEN            → 이미 지급 처리된 당첨자입니다
-//   - PRIZE_ALREADY_DRAWN      → 이미 추첨한 경품은 바꿀 수 없습니다
-//   - NOT_ENOUGH_CANDIDATES    → 추첨할 후보가 없습니다
-//   - DRAW_PENDING_EXISTS      → 확정하지 않은 추첨이 있습니다
-//   - INVALID_WINNER_COUNT     → 당첨 인원은 1 이상의 정수여야 합니다
-//   - INVALID_WINNER_SELECTION → 선택한 번호를 처리할 수 없습니다. 새로고침해 주세요
-//   - 그 밖                     → 처리하지 못했습니다 (코드)
-//     코드를 함께 보여 주는 이유: 현장에서 개발자에게 물어볼 때 원인을 바로 알 수 있다.
+// 콘솔과 발표 화면이 API 를 부를 때마다 반복되는 일을 모은다.
+// 401 일 때 window.location 을 바꾸므로 서버 코드에서 부르면 안 된다.
+// 화면 부품이 아니라서 components/ 가 아니라 lib/ 에 둔다 (spec 7.6).
 
-export {};
+// "NETWORK" 는 서버가 보내는 코드가 아니라 화면에서만 쓰는 값이다.
+export type AdminResult<T> = { ok: true; data: T } | { ok: false; code: string };
+
+export async function adminFetch<T = unknown>(
+  url: string,
+  init?: { method?: string; body?: unknown },
+): Promise<AdminResult<T>> {
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: init?.method ?? "GET",
+      headers: init?.body !== undefined ? { "Content-Type": "application/json" } : undefined,
+      body: init?.body !== undefined ? JSON.stringify(init.body) : undefined,
+      cache: "no-store",
+    });
+  } catch {
+    return { ok: false, code: "NETWORK" };
+  }
+
+  // 로그인이 풀렸다(12시간 지남, 다른 창에서 로그아웃). 로그인 뒤 지금 화면으로 돌아오게 한다 (spec 3.6).
+  if (res.status === 401) {
+    const next = window.location.pathname + window.location.search;
+    window.location.assign(`/admin/login?next=${encodeURIComponent(next)}`);
+    return { ok: false, code: "UNAUTHORIZED" };
+  }
+
+  if (res.status === 204) return { ok: true, data: undefined as T };
+
+  try {
+    const body = await res.json();
+    if (res.ok) return { ok: true, data: body as T };
+    return { ok: false, code: typeof body?.error === "string" ? body.error : "NETWORK" };
+  } catch {
+    // 서버가 JSON 이 아닌 오류 페이지를 돌려준 경우
+    return { ok: false, code: "NETWORK" };
+  }
+}
+
+// 콘솔과 발표 화면이 같은 문구를 쓰도록 한 곳에서 정한다.
+const MESSAGES: Record<string, string> = {
+  NETWORK: "연결에 실패했습니다. 다시 시도해 주세요",
+  PRIZE_ALREADY_DRAWN: "이미 추첨한 경품은 바꿀 수 없습니다",
+  NOT_ENOUGH_CANDIDATES: "추첨할 후보가 없습니다",
+  DRAW_PENDING_EXISTS: "확정하지 않은 추첨이 있습니다",
+  INVALID_WINNER_COUNT: "당첨 인원은 1 이상의 정수여야 합니다",
+  INVALID_WINNER_SELECTION: "선택한 번호를 처리할 수 없습니다. 새로고침해 주세요",
+};
+
+// 모르는 코드는 함께 보여 준다. 현장에서 개발자에게 물어볼 때 원인을 바로 알 수 있게.
+export function errorMessage(code: string): string {
+  return MESSAGES[code] ?? `처리하지 못했습니다 (${code})`;
+}

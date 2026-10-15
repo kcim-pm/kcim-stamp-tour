@@ -2,16 +2,15 @@ import { describe, it, expect } from "vitest";
 import { buildCsv, escapeField, formatTime, type CsvRow } from "../lib/csv";
 
 // 이스케이프로 쓴다. 글자 그대로 넣으면 보이지 않아 에디터가 지워도 모른다.
-const BOM = "﻿";
+const BOM = "\uFEFF";
 const zones = [{ name: "구역 1" }, { name: "구역 2" }];
-const HEADER = "참가번호,구역 1,구역 2,완주,당첨 경품,지급 시각";
+const HEADER = "참가번호,구역 1,구역 2,완주,당첨 경품";
 
 const row = (over: Partial<CsvRow> = {}): CsvRow => ({
   participantNo: 7,
   visitedAt: [null, null],
   completed: false,
   prizes: [],
-  giftGivenAt: [],
   ...over,
 });
 
@@ -27,7 +26,7 @@ describe("형식", () => {
     expect(buildCsv(zones, [row()]).startsWith(BOM)).toBe(true);
   });
 
-  it("첫 줄이 참가번호,구역 이름들…,완주,당첨 경품,지급 시각 순서다", () => {
+  it("첫 줄이 참가번호,구역 이름들…,완주,당첨 경품 순서다", () => {
     expect(lines(buildCsv(zones, [row()]))[0]).toBe(HEADER);
   });
 
@@ -50,7 +49,7 @@ describe("참가자 행", () => {
 
   it("미방문 구역은 빈칸이다", () => {
     const csv = buildCsv(zones, [row({ visitedAt: ["2026-10-27T01:00:00+00:00", null] })]);
-    expect(lines(csv)[1]).toBe("7,2026-10-27 10:00:00,,,,");
+    expect(lines(csv)[1]).toBe("7,2026-10-27 10:00:00,,,");
   });
 
   it('완주자는 완주 칸이 "Y", 아니면 빈칸이다', () => {
@@ -64,22 +63,20 @@ describe("참가자 행", () => {
   });
 
   it("당첨 경품이 여러 개면 세미콜론으로 잇는다", () => {
-    const csv = buildCsv(zones, [row({ prizes: ["5등 경품", "2등 경품"], giftGivenAt: [null, null] })]);
+    const csv = buildCsv(zones, [row({ prizes: ["5등 경품", "2등 경품"] })]);
     expect(lines(csv)[1].split(",")[4]).toBe("5등 경품;2등 경품");
   });
 
-  it("지급 시각도 경품 순서대로 세미콜론으로 잇고 미지급 자리는 비운다", () => {
-    const csv = buildCsv(zones, [
-      row({ prizes: ["5등 경품", "2등 경품"], giftGivenAt: ["2026-10-27T08:10:00+00:00", null] }),
-    ]);
-    expect(lines(csv)[1].split(",")[5]).toBe("2026-10-27 17:10:00;");
+  it("당첨 경품이 마지막 열이다 (지급 시각 열은 없다)", () => {
+    const csv = buildCsv(zones, [row({ prizes: ["5등 경품"] })]);
+    expect(lines(csv)[1]).toBe("7,,,,5등 경품");
   });
 });
 
 describe("칸 다듬기", () => {
   it("쉼표가 든 값은 큰따옴표로 감싼다", () => {
     expect(escapeField("로비, 1층")).toBe('"로비, 1층"');
-    expect(lines(buildCsv([{ name: "로비, 1층" }], []))[0]).toBe('참가번호,"로비, 1층",완주,당첨 경품,지급 시각');
+    expect(lines(buildCsv([{ name: "로비, 1층" }], []))[0]).toBe('참가번호,"로비, 1층",완주,당첨 경품');
   });
 
   it("큰따옴표가 든 값은 두 개로 바꾸고 감싼다", () => {

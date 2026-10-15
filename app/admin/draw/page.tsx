@@ -1,17 +1,11 @@
 // /admin/draw — 추첨·발표 화면 (spec 3.4). 서버 컴포넌트.
-//
-// 의사 코드 (작업 9). 아직 구현 전이다. 빌드가 깨지지 않도록 빈 페이지만 내보낸다.
-//
-// 【이 페이지가 하는 일】
-//   로그인을 확인하고 발표 화면 본체(draw-screen)를 띄운다. 데이터는 본체가 API 로 불러온다.
-//
-// 【처리 순서】
-//   1. 로그인했는지 확인한다 (requireAdminPage). 안 했으면 로그인 페이지로 보낸다. try 안에서 부르지 않는다.
-//   2. 발표 화면 본체를 그린다.
-//
-// 【화면 틀】
-//   프로젝터용이라 화면 전체(가로 16:9)를 꽉 채운다. 참가자 화면의 휴대폰 폭 틀은 쓰지 않는다.
+// 로그인을 확인하고 발표 화면 본체를 띄운다. 데이터는 본체가 API 로 불러온다.
+// 프로젝터용이라 화면 전체(가로 16:9)를 채운다. 참가자 화면의 휴대폰 폭 틀은 쓰지 않는다.
+import { requireAdminPage } from "@/lib/admin-session";
+import { DrawScreen } from "./_components/draw-screen";
 
-export default function DrawPage() {
-  return null;
+export default async function DrawPage() {
+  // try 안에서 부르지 않는다. 페이지 이동이 예외 방식으로 동작한다.
+  await requireAdminPage("/admin/draw");
+  return <DrawScreen />;
 }

@@ -1,11 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
-  assertCanGiveGift,
   assertCanStartDraw,
   assertPending,
   assertRedrawSelection,
   confirmedWinners,
   currentPrize,
+  splitPrizeChanges,
+  assignPrizeSorts,
+  orderPrizesForEditing,
+  type PrizeRecord,
   type DrawRow,
   type WinnerRow,
 } from "../lib/draw-state";
@@ -16,7 +19,6 @@ const winner = (participant_no: number, status: WinnerRow["status"], draw_id = 1
   draw_id,
   participant_no,
   status,
-  gift_given_at: null,
 });
 
 describe("새 추첨 시작", () => {
@@ -78,30 +80,6 @@ describe("재추첨 대상 검사", () => {
   });
 });
 
-describe("지급 가능 여부", () => {
-  it("confirmed 회차의 confirmed 당첨자는 통과", () => {
-    expect(() => assertCanGiveGift(draw(1, 1, "confirmed"), winner(7, "confirmed"))).not.toThrow();
-  });
-
-  it("pending 회차는 DRAW_NOT_CONFIRMED", () => {
-    expect(() => assertCanGiveGift(draw(1, 1, "pending"), winner(7, "pending"))).toThrow("DRAW_NOT_CONFIRMED");
-  });
-
-  it("확정 회차에 남은 absent 행(부재자)은 INVALID_WINNER_SELECTION", () => {
-    expect(() => assertCanGiveGift(draw(1, 1, "confirmed"), winner(42, "absent"))).toThrow(
-      "INVALID_WINNER_SELECTION",
-    );
-  });
-
-  it("이 회차에 기록이 없는 번호(null)는 INVALID_WINNER_SELECTION", () => {
-    expect(() => assertCanGiveGift(draw(1, 1, "confirmed"), null)).toThrow("INVALID_WINNER_SELECTION");
-  });
-
-  it("회차 검사가 당첨자 검사보다 먼저다", () => {
-    expect(() => assertCanGiveGift(draw(1, 1, "pending"), null)).toThrow("DRAW_NOT_CONFIRMED");
-  });
-});
-
 describe("지금 차례인 경품", () => {
   // sort 순서와 배열 순서를 일부러 다르게 둔다.
   const A = { id: 1, sort: 1 };
@@ -150,35 +128,140 @@ describe("확정 후 당첨자 상태", () => {
   });
 });
 
-// ── 의사 코드 (작업 7 추가분): 경품 목록 변경 내용 나누기 (splitPrizeChanges) ─────────────
-//
-// 준비: DB 에 경품 두 개가 있다고 둔다.
-//   경품 1: 5등, 당첨 10명, 순서 1
-//   경품 2: 4등, 당첨 5명, 순서 2
-//   「이미 추첨한 경품」이 필요한 사례에서는 경품 1 을 이미 추첨한 경품으로 넘긴다.
-//
-// 「경품 목록 변경 내용 나누기」 묶음에서 확인할 것:
-//
-// 정상적으로 나뉘는 경우
-//   - 번호 없는 새 경품을 보내면 「추가」 묶음에 들어간다
-//   - 아직 추첨하지 않은 경품의 이름을 바꾸면 「수정」 묶음에 들어간다
-//   - 아무것도 바꾸지 않은 경품은 「수정」 묶음에 들어가지 않는다
-//   - 아직 추첨하지 않은 경품을 목록에서 빼면 「삭제」 묶음에 들어간다
-//   - 이미 추첨한 경품을 그대로 보내면 오류 없이 통과하고, 어느 묶음에도 들어가지 않는다
-//   - 이미 추첨한 경품이 없을 때 빈 목록을 보내면 모든 경품이 「삭제」 묶음에 들어간다
-//
-// 이미 추첨한 경품을 바꾸면 PRIZE_ALREADY_DRAWN
-//   - 이름을 바꾼 경우
-//   - 당첨 인원을 바꾼 경우
-//   - 순서를 바꾼 경우
-//   - 목록에서 뺀 경우 (삭제하려는 경우)
-//
-// 내용이 틀리면 오류
-//   - 당첨 인원이 0, -1, 1.5 이면 INVALID_WINNER_COUNT
-//   - 이름이 빈 글자이거나 공백뿐이면 INVALID_BODY
-//   - DB 에 없는 경품 번호를 보내면 INVALID_BODY
-//   - 같은 경품 번호를 두 번 보내면 INVALID_BODY
-//
-// 검사 순서
-//   - 이미 추첨한 경품을 빼면서 다른 경품의 당첨 인원도 0 이면, INVALID_WINNER_COUNT 가 먼저 나온다
-//     (내용 검사가 「이미 추첨했는가」 검사보다 먼저라는 규칙을 고정한다)
+
+describe("경품 목록 변경 내용 나누기", () => {
+  // DB 에 경품 두 개가 있다. 「이미 추첨한 경품」이 필요한 사례에서는 경품 1 을 넘긴다.
+  const P1: PrizeRecord = { id: 1, name: "5등 커피", winnerCount: 10, sort: 1 };
+  const P2: PrizeRecord = { id: 2, name: "4등 텀블러", winnerCount: 5, sort: 2 };
+  const current = [P1, P2];
+
+  describe("정상적으로 나뉘는 경우", () => {
+    it("번호 없는 새 경품을 보내면 「추가」 묶음에 들어간다", () => {
+      const result = splitPrizeChanges(current, [P1, P2, { name: "2등 태블릿", winnerCount: 1, sort: 3 }], []);
+      expect(result).toEqual({
+        toInsert: [{ name: "2등 태블릿", winnerCount: 1, sort: 3 }],
+        toUpdate: [],
+        toDelete: [],
+      });
+    });
+
+    it("아직 추첨하지 않은 경품의 이름을 바꾸면 「수정」 묶음에 들어간다", () => {
+      const changed = { ...P2, name: "4등 머그컵" };
+      expect(splitPrizeChanges(current, [P1, changed], [1]).toUpdate).toEqual([changed]);
+    });
+
+    it("아무것도 바꾸지 않은 경품은 「수정」 묶음에 들어가지 않는다", () => {
+      expect(splitPrizeChanges(current, [P1, P2], [])).toEqual({ toInsert: [], toUpdate: [], toDelete: [] });
+    });
+
+    it("아직 추첨하지 않은 경품을 목록에서 빼면 「삭제」 묶음에 들어간다", () => {
+      expect(splitPrizeChanges(current, [P1], [1]).toDelete).toEqual([2]);
+    });
+
+    it("이미 추첨한 경품을 그대로 보내면 오류 없이 통과하고, 어느 묶음에도 들어가지 않는다", () => {
+      const result = splitPrizeChanges(current, [P1, { ...P2, winnerCount: 7 }], [1]);
+      expect(result).toEqual({ toInsert: [], toUpdate: [{ ...P2, winnerCount: 7 }], toDelete: [] });
+    });
+
+    it("이미 추첨한 경품이 없을 때 빈 목록을 보내면 모든 경품이 「삭제」 묶음에 들어간다", () => {
+      expect(splitPrizeChanges(current, [], []).toDelete).toEqual([1, 2]);
+    });
+
+    it("이름 앞뒤 공백은 지우고 저장한다 (공백만 바뀐 것은 변경이 아니다)", () => {
+      expect(splitPrizeChanges(current, [{ ...P1, name: " 5등 커피 " }, P2], [1])).toEqual({
+        toInsert: [],
+        toUpdate: [],
+        toDelete: [],
+      });
+    });
+  });
+
+  describe("이미 추첨한 경품을 바꾸면 PRIZE_ALREADY_DRAWN", () => {
+    it.each([
+      ["이름", { name: "5등 아이스커피" }],
+      ["당첨 인원", { winnerCount: 12 }],
+      ["순서", { sort: 3 }],
+    ])("%s 을(를) 바꾼 경우", (_label, change) => {
+      expect(() => splitPrizeChanges(current, [{ ...P1, ...change }, P2], [1])).toThrow("PRIZE_ALREADY_DRAWN");
+    });
+
+    it("목록에서 뺀 경우 (삭제하려는 경우)", () => {
+      expect(() => splitPrizeChanges(current, [P2], [1])).toThrow("PRIZE_ALREADY_DRAWN");
+    });
+  });
+
+  describe("내용이 틀리면 오류", () => {
+    it.each([0, -1, 1.5, "3", null])("당첨 인원이 %j 이면 INVALID_WINNER_COUNT", (winnerCount) => {
+      expect(() => splitPrizeChanges(current, [P1, { ...P2, winnerCount }], [])).toThrow("INVALID_WINNER_COUNT");
+    });
+
+    it.each(["", "   ", null])("이름이 %j 이면 INVALID_BODY", (name) => {
+      expect(() => splitPrizeChanges(current, [P1, { ...P2, name }], [])).toThrow("INVALID_BODY");
+    });
+
+    it("순서가 정수가 아니면 INVALID_BODY", () => {
+      expect(() => splitPrizeChanges(current, [P1, { ...P2, sort: "1" }], [])).toThrow("INVALID_BODY");
+    });
+
+    it("등급(rank)을 보내도 저장 내용에 넣지 않는다 (DB 에 없는 열)", () => {
+      const result = splitPrizeChanges(current, [P1, P2, { rank: 2, name: "2등 태블릿", winnerCount: 1, sort: 3 }], []);
+      expect(result.toInsert).toEqual([{ name: "2등 태블릿", winnerCount: 1, sort: 3 }]);
+    });
+
+    it("DB 에 없는 경품 번호를 보내면 INVALID_BODY", () => {
+      expect(() => splitPrizeChanges(current, [P1, { ...P2, id: 99 }], [])).toThrow("INVALID_BODY");
+    });
+
+    it("같은 경품 번호를 두 번 보내면 INVALID_BODY", () => {
+      expect(() => splitPrizeChanges(current, [P1, P2, { ...P2, name: "다른 이름" }], [])).toThrow("INVALID_BODY");
+    });
+
+    it("경품 한 줄이 객체가 아니면 INVALID_BODY", () => {
+      expect(() => splitPrizeChanges(current, [P1, "경품"], [])).toThrow("INVALID_BODY");
+    });
+  });
+
+  describe("검사 순서", () => {
+    it("이미 추첨한 경품을 빼면서 다른 경품의 당첨 인원도 0 이면, INVALID_WINNER_COUNT 가 먼저 나온다", () => {
+      expect(() => splitPrizeChanges(current, [{ ...P2, winnerCount: 0 }], [1])).toThrow("INVALID_WINNER_COUNT");
+    });
+  });
+});
+
+describe("경품 표 순서", () => {
+  const prize = (sort: number | null, drawn = false) => ({ sort, drawn });
+
+  describe("편집 화면 줄 순서 (orderPrizesForEditing)", () => {
+    it("추첨한 경품을 맨 위로 올리고, 각 묶음 안에서는 받은 순서를 유지한다", () => {
+      const a = prize(1);
+      const b = prize(2, true);
+      const c = prize(3);
+      const d = prize(4, true);
+      expect(orderPrizesForEditing([a, b, c, d])).toEqual([b, d, a, c]);
+    });
+
+    it("원본 배열을 바꾸지 않는다", () => {
+      const rows = [prize(1), prize(2, true)];
+      orderPrizesForEditing(rows);
+      expect(rows).toEqual([prize(1), prize(2, true)]);
+    });
+  });
+
+  describe("저장할 sort 매기기 (assignPrizeSorts)", () => {
+    it("추첨한 경품이 없으면 위에서부터 1, 2, 3", () => {
+      expect(assignPrizeSorts([prize(7), prize(null), prize(2)])).toEqual([1, 2, 3]);
+    });
+
+    it("추첨한 경품은 sort 그대로, 나머지는 그 뒤로 이어서 매긴다", () => {
+      expect(assignPrizeSorts([prize(1, true), prize(2, true), prize(9), prize(null)])).toEqual([1, 2, 3, 4]);
+    });
+
+    it("추첨한 경품의 sort 가 띄엄띄엄이어도 나머지는 가장 큰 값 다음부터", () => {
+      expect(assignPrizeSorts([prize(1, true), prize(5, true), prize(2)])).toEqual([1, 5, 6]);
+    });
+
+    it("빈 목록이면 빈 목록", () => {
+      expect(assignPrizeSorts([])).toEqual([]);
+    });
+  });
+});

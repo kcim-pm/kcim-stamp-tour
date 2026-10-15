@@ -1,48 +1,99 @@
-// GET·POST /api/admin/draws — 추첨 이력 조회, 추첨 실행 (spec 5.3, A-10, A-11, A-13, A-18)
-//
-// 의사 코드 (작업 7). 아직 구현 전이다.
-//
-// ── GET: 추첨 이력 조회 ───────────────────────────
-// 【하는 일】 발표 화면이 열릴 때, 그리고 조작이 실패해 다시 맞출 때 부른다.
-//   모든 회차(확정 전 임시 회차 포함)와 당첨자, 그리고 후보 수 두 가지를 돌려준다.
-// 【처리 순서】
-//   1. 로그인했는지 확인한다.
-//   2. 회차를 전부 읽는다 (admin-query 기능 2).
-//   3. 완주자 목록을 구한다 (기능 1). 그 수가 completedCount 다. 「이전 당첨자 제외」를 껐을 때의 후보 수와 같다.
-//   4. 「이전 당첨자 제외」를 켠 기준으로 추첨 후보를 구해 그 수를 센다 (기능 5). 이것이 candidateCount 다.
-//   5. 회차 목록(응답 모양으로 바꾼 것), candidateCount, completedCount 를 돌려준다.
-// 【이렇게 정한 이유】 발표 화면 준비 단계에서 스위치를 켜고 끌 때마다 후보 수가 바뀌어 보여야 한다.
-//   두 숫자를 모두 받아 두면 스위치를 바꿀 때 서버를 다시 부르지 않아도 된다.
-//   (기능 5 안에서 완주자 목록을 한 번 더 읽지 않도록, 3단계에서 구한 완주자 목록을 넘겨 쓰면 더 좋다)
-//
-// ── POST: 추첨 실행 ─────────────────────────────
-// 【하는 일】 발표 화면의 [추첨 시작]이 부른다. 서버에서 당첨자를 뽑아 「임시 결과」로 저장한다.
-//   화면의 연출은 여기서 정해진 결과를 보여 줄 뿐이다.
-// 【처리 순서】
-//   1. 로그인했는지 확인한다.
-//   2. 요청 본문을 읽고 확인한다. 틀리면 400 INVALID_BODY.
-//      - 경품 번호: 1 이상의 정수여야 한다
-//      - 이전 당첨자 제외: 참/거짓. 없으면 「참」
-//      - 당첨 인원: 없으면 경품 목록에 등록한 인원을 쓴다 (A-11)
-//   3. 회차를 전부 읽고, 지금 추첨을 시작해도 되는지 확인한다 (assertCanStartDraw).
-//      - 확정하지 않은 회차가 있으면 409 DRAW_PENDING_EXISTS
-//      - 이 경품을 이미 확정했으면 409 PRIZE_ALREADY_DRAWN
-//   4. 경품을 읽는다. 없는 경품이면 400 INVALID_BODY.
-//   5. 추첨 후보를 구한다 (기능 5).
-//   6. 후보 중에서 당첨 인원만큼 무작위로 뽑는다 (drawWinners, 난수는 Node 의 crypto.randomInt).
-//      - 당첨 인원이 1 이상의 정수가 아니면 400 INVALID_WINNER_COUNT
-//      - 후보가 0명이면 409 NOT_ENOUGH_CANDIDATES
-//      - 후보가 인원보다 적으면 후보 전원이 뽑힌다
-//   7. 새 회차를 「임시」 상태로 저장한다. 당첨 인원 칸에는 요청한 인원을 그대로 남긴다(실제로 덜 뽑혔어도, spec 5.3).
-//   8. 뽑힌 번호들을 이 회차의 「임시 당첨자」로 저장한다.
-//      이 저장이 실패하면 7단계에서 만든 회차를 지운 뒤 오류를 낸다.
-//      이유: 당첨자 없는 임시 회차가 남으면 3단계 검사 때문에 다음 추첨이 계속 막힌다.
-//   9. 이 회차를 다시 읽어 201 로 돌려준다.
-//
-// 【알고 둘 것】
-//   - 3단계 검사와 7단계 저장 사이에 틈이 있어서, [추첨 시작]을 아주 빠르게 두 번 누르면 임시 회차가 두 개 생길 수 있다.
-//     발표 화면은 한 창에서만 조작하므로, 요청 중에는 버튼을 막는 것으로 충분하다 (작업 9).
-//     【선택】 완전히 막으려면 DB 에 「임시 회차는 하나만」이라는 제약을 추가한다 (마이그레이션 0002).
-//   - 요청한 경품이 「지금 차례」인지는 검사하지 않는다. 명세에 그런 규칙이 없고, 발표 화면이 항상 지금 차례를 보낸다.
+import { randomInt } from "node:crypto";
+import { NextResponse, type NextRequest } from "next/server";
+import { requireAdminApi } from "@/lib/admin-session";
+import { apiError, toErrorResponse } from "@/lib/api-error";
+import {
+  loadCandidates,
+  loadCompletedNos,
+  loadDraw,
+  loadDraws,
+  toDrawResponse,
+  toDrawRow,
+} from "@/lib/admin-query";
+import { drawWinners } from "@/lib/draw";
+import { assertCanStartDraw } from "@/lib/draw-state";
+import { getSupabase } from "@/lib/supabase-server";
+import { DbError } from "@/lib/status-query";
 
-export {};
+// GET·POST /api/admin/draws — 추첨 이력 조회, 추첨 실행 (spec 5.3, A-10, A-11, A-13, A-18)
+
+// 발표 화면이 열릴 때, 조작이 실패해 다시 맞출 때 부른다. 임시 회차도 포함한다.
+// 「이전 당첨자 제외」 켬/끔 두 후보 수를 함께 돌려줘서, 스위치를 바꿀 때 서버를 다시 부르지 않게 한다.
+export async function GET() {
+  const denied = await requireAdminApi();
+  if (denied) return denied;
+
+  try {
+    const [draws, completedNos] = await Promise.all([loadDraws(), loadCompletedNos()]);
+    const candidates = await loadCandidates(draws, true, completedNos);
+    return NextResponse.json({
+      draws: draws.map(toDrawResponse),
+      candidateCount: candidates.length,
+      completedCount: completedNos.length,
+    });
+  } catch (e) {
+    return toErrorResponse(e, "[GET /api/admin/draws]");
+  }
+}
+
+// 발표 화면의 [추첨 시작]이 부른다. 서버에서 당첨자를 뽑아 임시 결과로 저장한다. 연출은 이 결과를 보여 줄 뿐이다.
+// 검사와 저장 사이에 틈이 있어 아주 빠르게 두 번 누르면 임시 회차가 두 개 생길 수 있다.
+// 발표 화면은 요청 중에 버튼을 막는다. 요청한 경품이 「지금 차례」인지는 검사하지 않는다 (명세에 없음).
+export async function POST(request: NextRequest) {
+  const denied = await requireAdminApi();
+  if (denied) return denied;
+
+  let body: { prizeId?: unknown; winnerCount?: unknown; excludePrevious?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return apiError("INVALID_BODY");
+  }
+  const { prizeId, winnerCount, excludePrevious = true } = body ?? {};
+  if (!Number.isInteger(prizeId) || (prizeId as number) < 1 || typeof excludePrevious !== "boolean") {
+    return apiError("INVALID_BODY");
+  }
+
+  const supabase = getSupabase();
+  try {
+    const draws = await loadDraws();
+    assertCanStartDraw(draws.map(toDrawRow), prizeId as number);
+
+    const { data: prize, error: prizeError } = await supabase
+      .from("prizes")
+      .select("id, winner_count")
+      .eq("id", prizeId as number)
+      .maybeSingle();
+    if (prizeError) throw new DbError(prizeError.message);
+    if (!prize) return apiError("INVALID_BODY");
+
+    // 생략하면 경품 목록의 인원 (A-11). 틀린 값은 drawWinners 가 INVALID_WINNER_COUNT 로 거부한다.
+    const count = winnerCount === undefined ? prize.winner_count : winnerCount;
+    const candidates = await loadCandidates(draws, excludePrevious);
+    // 후보가 인원보다 적으면 후보 전원, 0명이면 NOT_ENOUGH_CANDIDATES
+    const picked = drawWinners(candidates, count as number, randomInt);
+
+    // 당첨 인원 칸에는 실제로 덜 뽑혔어도 요청한 인원을 남긴다 (spec 5.3)
+    const { data: created, error: drawError } = await supabase
+      .from("draws")
+      .insert({ prize_id: prize.id, winner_count: count, exclude_previous: excludePrevious, status: "pending" })
+      .select("id")
+      .single();
+    if (drawError) throw new DbError(drawError.message);
+
+    const { error: winnersError } = await supabase
+      .from("draw_winners")
+      .insert(picked.map((no) => ({ draw_id: created.id, participant_no: no, status: "pending" })));
+    if (winnersError) {
+      // 당첨자 없는 임시 회차가 남으면 DRAW_PENDING_EXISTS 때문에 다음 추첨이 계속 막힌다.
+      await supabase.from("draws").delete().eq("id", created.id);
+      throw new DbError(winnersError.message);
+    }
+
+    const saved = await loadDraw(created.id);
+    if (!saved) throw new DbError(`방금 만든 회차 ${created.id} 를 다시 읽지 못했다`);
+    return NextResponse.json(toDrawResponse(saved), { status: 201 });
+  } catch (e) {
+    return toErrorResponse(e, "[POST /api/admin/draws]");
+  }
+}

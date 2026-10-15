@@ -1,34 +1,67 @@
+"use client";
+
 // 콘솔 자동 갱신 규칙 (클라이언트 훅). spec 3.3 「자동 갱신」, A-06
 //
-// 의사 코드 (작업 8). 아직 구현 전이다.
-//
-// 【이 훅이 하는 일】
-//   「목록을 다시 불러오는 함수」를 받아서, 아래 세 가지 규칙에 맞춰 알아서 불러 준다.
-//   화면 코드와 타이머 코드가 섞이면 검토하기 어려워서 따로 둔다.
-//
-// 【규칙 세 가지】
+// 「다시 불러오는 함수」를 받아 아래 규칙대로 불러 준다. 화면 코드와 타이머 코드를 섞지 않으려고 따로 둔다.
 //   ① 스위치가 켜져 있으면 1분마다 다시 불러온다.
-//   ② 브라우저 탭이 안 보이면(다른 탭을 보거나 창을 내림) 멈춘다. 다시 보이면 바로 한 번 불러오고 1분 간격을 다시 시작한다.
-//   ③ 스위치를 켠 지 30분이 지나면 스위치를 끈다. 탭이 안 보이던 시간도 30분에 포함한다.
+//   ② 탭이 안 보이면 멈춘다. 다시 보이면 바로 한 번 불러오고 1분 간격을 다시 시작한다.
+//   ③ 스위치를 켠 지 30분이 지나면 끈다. 탭이 안 보이던 시간도 포함한다.
+// 콘솔을 열면 켜진 상태로 시작한다 (spec 3.3).
 //
-// 【돌려주는 것】
-//   스위치가 켜져 있는지, 그리고 스위치를 켜고 끄는 함수.
-//
-// 【동작】
-//   1. 처음에는 스위치가 켜진 상태로 시작하고, 「켠 시각」을 지금으로 기억한다.
-//      콘솔을 열면 켜진 상태로 시작한다 (spec 3.3). 열자마자 갱신되고 30분 뒤 꺼진다.
-//   2. 스위치를 다시 켜면 「켠 시각」을 그때로 바꾼다. 30분을 처음부터 다시 센다.
-//   3. 스위치가 켜져 있는 동안:
-//      - 탭이 보이면 1분 타이머를 돌린다.
-//      - 1분마다: 켠 지 30분이 지났으면 스위치를 끄고, 아니면 다시 불러온다.
-//      - 탭이 안 보이게 되면 타이머를 멈춘다.
-//      - 탭이 다시 보이면: 30분이 지났으면 스위치를 끄고, 아니면 바로 한 번 불러온 뒤 타이머를 다시 돌린다.
-//   4. 스위치가 꺼지거나 화면을 떠나면 타이머와 탭 감시를 모두 정리한다.
-//
-// 【주의할 점】
-//   - 넘겨받는 「다시 불러오는 함수」는 화면에서 useCallback 으로 감싸야 한다.
-//     감싸지 않으면 화면이 그려질 때마다 새 함수로 바뀌어 타이머가 계속 새로 만들어진다.
-//   - 탭이 안 보이는 동안에는 타이머가 없다. 그래서 30분 확인은 탭이 다시 보일 때 한다.
-//   - [새로고침] 버튼은 이 훅과 상관없다. 스위치가 꺼져 있어도 누르면 바로 불러온다.
+// reload 는 화면에서 useCallback 으로 감싸야 한다. 아니면 그릴 때마다 타이머가 새로 만들어진다.
+// [새로고침] 버튼은 이 훅과 상관없다.
+import { useCallback, useEffect, useState } from "react";
 
-export {};
+const INTERVAL_MS = 60 * 1000;
+const AUTO_OFF_MS = 30 * 60 * 1000;
+
+export function useAutoRefresh(reload: () => void): { enabled: boolean; setEnabled: (on: boolean) => void } {
+  const [enabled, setEnabledState] = useState(true);
+  // 「켠 시각」. 다시 켜면 30분을 처음부터 센다.
+  const [enabledAt, setEnabledAt] = useState(() => Date.now());
+
+  const setEnabled = useCallback((on: boolean) => {
+    setEnabledState(on);
+    if (on) setEnabledAt(Date.now());
+  }, []);
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const expired = () => Date.now() - enabledAt >= AUTO_OFF_MS;
+
+    const stop = () => {
+      if (timer !== null) clearInterval(timer);
+      timer = null;
+    };
+    const start = () => {
+      stop();
+      timer = setInterval(() => {
+        if (expired()) setEnabledState(false);
+        else reload();
+      }, INTERVAL_MS);
+    };
+
+    // 탭이 안 보이는 동안에는 타이머가 없으므로 30분 확인은 다시 보일 때 한다.
+    const onVisibility = () => {
+      if (document.hidden) {
+        stop();
+      } else if (expired()) {
+        setEnabledState(false);
+      } else {
+        reload();
+        start();
+      }
+    };
+
+    if (!document.hidden) start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [enabled, enabledAt, reload]);
+
+  return { enabled, setEnabled };
+}

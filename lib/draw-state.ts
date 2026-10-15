@@ -15,7 +15,6 @@ export type WinnerRow = {
   draw_id: number;
   participant_no: number;
   status: WinnerStatus;
-  gift_given_at: string | null;
 };
 export type PrizeRow = { id: number; sort: number };
 
@@ -52,19 +51,6 @@ export function assertRedrawSelection(winners: WinnerRow[], participantNos: numb
   }
 }
 
-// spec 5.3 winners. winner 는 이 회차에서 그 번호의 당첨 기록이고, 없으면 null 을 넘긴다.
-// 확정 회차에도 absent 행(부재자)이 기록으로 남아 있으므로, 회차만 보면 부재자가 지급 처리된다.
-// 「이미 지급됨(ALREADY_GIVEN)」은 여기서 보지 않는다. DB 의 조건부 갱신(gift_given_at is null)이
-// 맡는다 (D-11). 두 운영자가 동시에 눌러도 DB 가 한 번만 받아 주기 때문이다.
-export function assertCanGiveGift(draw: DrawRow, winner: WinnerRow | null): void {
-  if (draw.status !== "confirmed") {
-    throw new Error("DRAW_NOT_CONFIRMED");
-  }
-  if (winner === null || winner.status !== "confirmed") {
-    throw new Error("INVALID_WINNER_SELECTION");
-  }
-}
-
 // spec 6장 「경품 순서」. sort 오름차순으로 「confirmed 회차가 없는」 첫 경품. 전부 확정했으면 null.
 // 뽑는 중(pending)인 경품은 확정 전이므로 그 경품이 그대로 「지금 차례」다 (D-10).
 // 발표 화면 페이지와 GET /api/admin/draws 가 같이 쓴다.
@@ -79,51 +65,92 @@ export function confirmedWinners(winners: WinnerRow[]): WinnerRow[] {
   return winners.map((w) => (w.status === "pending" ? { ...w, status: "confirmed" } : { ...w }));
 }
 
-// ── 의사 코드 (작업 7 추가분, 아직 구현 전) ─────────────────────────────
+// ── 경품 목록 변경 내용 나누기 ───────────────────────  spec 5.3 PUT prizes, A-12
 //
-// 【함수 7: 경품 목록 변경 내용 나누기 (splitPrizeChanges)】  spec 5.3 PUT prizes, A-12
+// 콘솔은 [저장]을 누르면 「화면에 보이는 표 전체」를 보낸다 (spec 5.3 「통째로 저장」).
+// DB 에는 「표 전체를 이걸로 바꿔라」라는 명령이 없으므로, 지금 표와 비교해 줄마다 추가·수정·삭제로 나눈다.
+// 나누는 김에 「이미 추첨한 경품은 수정·삭제할 수 없다」(A-12) 규칙도 여기서 검사한다.
 //
-// 왜 필요한가:
-//   콘솔의 경품 목록 화면은 [저장]을 누르면 「화면에 보이는 표 전체」를 서버로 보낸다 (spec 5.3 「통째로 저장」).
-//   그런데 DB 에는 「표 전체를 이걸로 바꿔라」라는 명령이 없다. 줄마다 추가·수정·삭제 중 하나를 골라 명령해야 한다.
-//   그래서 「DB 에 지금 있는 표」와 「화면이 보낸 표」를 비교해, 어떤 줄을 추가·수정·삭제해야 하는지 나눠 주는 함수가 필요하다.
-//   나누는 김에 「이미 추첨한 경품은 수정·삭제할 수 없다」(A-12) 규칙도 여기서 검사한다.
-//   DB 는 건드리지 않는다. API 는 이 함수가 나눠 준 대로 저장만 한다.
+// 「이미 추첨한 경품」: [추첨 시작]을 한 번이라도 누른 경품. 확정 전 임시 회차만 있어도 포함한다.
+//   ① 임시 결과가 있는 경품을 지우면 DB 가 거부해서 500 이 난다.
+//   ② 추첨 도중에 당첨 인원을 바꾸면 발표 화면의 「N명 추첨」과 실제 결과가 어긋난다.
 //
-// 예시:
-//   DB 에 지금 있는 표                    화면이 보낸 표
-//   ┌────┬─────────────┬────┐            ┌────┬─────────────┬────┐
-//   │ 1  │ 5등 커피     │ 10명│  (추첨함)   │ 1  │ 5등 커피     │ 10명│  ← 그대로
-//   │ 2  │ 4등 텀블러   │ 5명 │            │ 2  │ 4등 텀블러   │ 7명 │  ← 인원을 바꿈
-//   │ 3  │ 3등 이어폰   │ 3명 │            │    │ 2등 태블릿   │ 1명 │  ← 번호 없음 = 새 줄
-//   └────┴─────────────┴────┘            └────┴─────────────┴────┘
-//                                         (3번 이어폰은 화면에서 지웠다)
-//   결과: 추가 = [2등 태블릿], 수정 = [2번 텀블러 7명], 삭제 = [3번 이어폰]
-//   1번 커피는 이미 추첨했지만 아무것도 바꾸지 않았으므로 문제없다. 어느 묶음에도 들어가지 않는다.
-//   만약 화면이 1번 커피를 12명으로 바꿔 보냈거나 목록에서 뺐다면 PRIZE_ALREADY_DRAWN 오류가 난다.
-//
-// 받는 것: ① DB 에 지금 있는 경품 목록 ② 화면이 보낸 경품 목록 ③ 이미 추첨한 경품의 번호 목록
-// 돌려주는 것: 추가할 경품, 수정할 경품, 삭제할 경품 번호 (세 묶음)
-//
-// 처리 순서:
-//   1. 화면이 보낸 경품을 한 줄씩 검사한다. 하나라도 틀리면 바로 멈춘다.
-//      - 당첨 인원이 1 이상의 정수가 아니면 → INVALID_WINNER_COUNT
-//      - 이름이 비었거나(공백만 있어도 빈 것), 등급·순서가 정수가 아니면 → INVALID_BODY
-//      - 경품 번호가 있는데 DB 에 없는 번호면 → INVALID_BODY (다른 창에서 이미 지운 경품)
-//      - 같은 경품 번호가 두 번 나오면 → INVALID_BODY
-//   2. 이미 추첨한 경품을 하나씩 검사한다.
-//      - 화면이 보낸 목록에 없으면, 삭제하려는 것이다 → PRIZE_ALREADY_DRAWN
-//      - 등급·이름·당첨 인원·순서 중 하나라도 바뀌었으면 → PRIZE_ALREADY_DRAWN
-//   3. 세 묶음으로 나눈다.
-//      - 추가: 경품 번호가 없는 줄 (화면에서 새로 만든 줄)
-//      - 수정: 경품 번호가 있고, 값이 실제로 바뀐 줄. 안 바뀐 줄은 넣지 않는다.
-//      - 삭제: DB 에는 있는데 화면이 보낸 목록에서 빠진 경품
-//   검사 순서는 1번(내용이 올바른가) → 2번(이미 추첨했는가)이다. 테스트로 이 순서를 고정한다.
-//
-// 여기(lib/draw-state.ts)에 두는 이유:
-//   「이미 추첨한 경품은 바꿀 수 없다」는 상태 규칙이라 단위 테스트로 지켜야 한다 (assertCanGiveGift 와 같은 이유).
-//
-// 「이미 추첨한 경품」의 기준: [추첨 시작]을 한 번이라도 누른 경품. 확정 전 임시 결과만 있어도 포함한다 (spec A-12).
-//   이유 ① 임시 결과가 있는 경품을 지우면 DB 가 거부해서 500 오류가 난다.
-//        ② 추첨하는 도중에 당첨 인원을 바꾸면 발표 화면의 「N명 추첨」과 실제 결과가 어긋난다.
-//   경품 목록 조회 API 의 drawn 값도 같은 기준이다.
+// 검사 순서는 1(내용이 올바른가) → 2(이미 추첨했는가)다. 테스트로 이 순서를 고정한다.
+
+// 경품 한 줄 (API 이름, camelCase)
+// 등급은 따로 두지 않고 「5등 커피」처럼 이름에 적는다 (DB 에 rank 열은 없다).
+export type PrizeRecord = { id: number; name: string; winnerCount: number; sort: number };
+export type NewPrize = Omit<PrizeRecord, "id">;
+export type PrizeChanges = { toInsert: NewPrize[]; toUpdate: PrizeRecord[]; toDelete: number[] };
+
+// 화면이 보낸 한 줄을 검사해 다듬는다. id 가 없으면 새 줄이다.
+function parsePrizeInput(raw: unknown): NewPrize & { id: number | null } {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) throw new Error("INVALID_BODY");
+  const r = raw as Record<string, unknown>;
+
+  if (!Number.isInteger(r.winnerCount) || (r.winnerCount as number) < 1) throw new Error("INVALID_WINNER_COUNT");
+
+  const name = typeof r.name === "string" ? r.name.trim() : "";
+  if (name === "" || !Number.isInteger(r.sort)) throw new Error("INVALID_BODY");
+
+  let id: number | null = null;
+  if (r.id !== undefined && r.id !== null) {
+    if (!Number.isInteger(r.id)) throw new Error("INVALID_BODY");
+    id = r.id as number;
+  }
+
+  return { id, name, winnerCount: r.winnerCount as number, sort: r.sort as number };
+}
+
+const samePrize = (a: NewPrize, b: NewPrize) =>
+  a.name === b.name && a.winnerCount === b.winnerCount && a.sort === b.sort;
+
+export function splitPrizeChanges(current: PrizeRecord[], submitted: unknown[], drawnPrizeIds: number[]): PrizeChanges {
+  const currentById = new Map(current.map((p) => [p.id, p]));
+
+  // 1. 내용 검사. 하나라도 틀리면 바로 멈춘다.
+  const parsed = submitted.map(parsePrizeInput);
+  const seenIds = new Set<number>();
+  for (const p of parsed) {
+    if (p.id === null) continue;
+    // DB 에 없는 번호(다른 창에서 이미 지운 경품)나 같은 번호 두 번
+    if (!currentById.has(p.id) || seenIds.has(p.id)) throw new Error("INVALID_BODY");
+    seenIds.add(p.id);
+  }
+
+  // 2. 이미 추첨한 경품은 그대로여야 한다. 빠졌으면 삭제하려는 것이다.
+  const submittedById = new Map(parsed.filter((p) => p.id !== null).map((p) => [p.id as number, p]));
+  for (const drawnId of drawnPrizeIds) {
+    const before = currentById.get(drawnId);
+    if (!before) continue;
+    const after = submittedById.get(drawnId);
+    if (!after || !samePrize(before, after)) throw new Error("PRIZE_ALREADY_DRAWN");
+  }
+
+  // 3. 세 묶음으로 나눈다. 값이 그대로인 줄은 어디에도 넣지 않는다.
+  const toInsert: NewPrize[] = [];
+  const toUpdate: PrizeRecord[] = [];
+  for (const { id, ...values } of parsed) {
+    if (id === null) toInsert.push(values);
+    else if (!samePrize(currentById.get(id)!, values)) toUpdate.push({ id, ...values });
+  }
+  const toDelete = current.filter((p) => !submittedById.has(p.id)).map((p) => p.id);
+
+  return { toInsert, toUpdate, toDelete };
+}
+
+// ── 경품 표 순서 ─────────────────────────────────────  spec 3.3 「경품 목록」
+// 추첨 순서는 콘솔 표의 줄 순서다. 운영자는 순서 숫자를 입력하지 않고 [↑][↓]로 줄을 옮긴다.
+// 이미 추첨한 경품은 sort 를 바꾸면 PRIZE_ALREADY_DRAWN 이므로 맨 위에 고정하고 sort 를 그대로 둔다.
+type OrderedPrize = { drawn: boolean; sort: number | null };
+
+// 편집 화면의 처음 줄 순서. 추첨한 경품을 맨 위로, 각 묶음 안에서는 받은 순서(sort 순)를 유지한다.
+export function orderPrizesForEditing<P extends OrderedPrize>(prizes: P[]): P[] {
+  return [...prizes.filter((p) => p.drawn), ...prizes.filter((p) => !p.drawn)];
+}
+
+// 저장할 sort. 줄 순서대로 받는다. 추첨한 경품은 sort 그대로, 나머지는 그중 가장 큰 값 다음부터 1씩 늘린다.
+export function assignPrizeSorts(rows: OrderedPrize[]): number[] {
+  let next = Math.max(0, ...rows.filter((r) => r.drawn).map((r) => r.sort ?? 0)) + 1;
+  return rows.map((r) => (r.drawn && r.sort !== null ? r.sort : next++));
+}

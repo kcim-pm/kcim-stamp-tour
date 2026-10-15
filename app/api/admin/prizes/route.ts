@@ -1,34 +1,69 @@
-// GET·PUT /api/admin/prizes — 경품 목록 조회와 저장 (spec 5.3, A-12, D-19)
-//
-// 의사 코드 (작업 7). 아직 구현 전이다.
-//
-// ── GET: 경품 목록 조회 ───────────────────────────
-// 【하는 일】 콘솔의 경품 목록 영역과 발표 화면이 부른다. 경품을 추첨 순서대로 돌려준다.
-// 【처리 순서】
-//   1. 로그인했는지 확인한다.
-//   2. 경품을 순서(sort) 오름차순으로 읽는다. 순서가 같으면 경품 번호 순서로 둔다.
-//   3. 이미 추첨한 경품의 번호를 구한다 (아래 「이미 추첨한 경품 구하기」).
-//   4. 경품마다 「이미 추첨했는지(drawn)」를 붙여 돌려준다. 콘솔은 이미 추첨한 경품의 입력란을 막는다.
-//
-// ── PUT: 경품 목록 통째로 저장 ─────────────────────
-// 【하는 일】 콘솔에서 [저장]을 누르면, 화면의 경품 목록 전체를 받아 DB 를 그 목록과 같게 만든다.
-// 【처리 순서】
-//   1. 로그인했는지 확인한다.
-//   2. 요청 본문을 읽는다. JSON 이 아니거나 prizes 가 목록(배열)이 아니면 400 INVALID_BODY.
-//      경품 하나하나의 내용 검사는 다음 단계의 계획 함수가 한다.
-//   3. DB 의 지금 경품 목록과 이미 추첨한 경품의 번호를 읽는다.
-//   4. 화면이 보낸 목록을 「추가·수정·삭제」 세 묶음으로 나눈다 (splitPrizeChanges).
-//      규칙에 어긋나면 여기서 오류가 나고 DB 는 하나도 바뀌지 않는다. 예: 이미 추첨한 경품을 고치면 409 PRIZE_ALREADY_DRAWN
-//   5. 나눈 대로 저장한다. 순서: 삭제 → 수정 → 추가
-//   6. 저장한 뒤의 목록을 GET 과 같은 모양으로 다시 읽어 돌려준다. 콘솔은 이 응답으로 표를 다시 그린다.
-//
-// ── 이미 추첨한 경품 구하기 ─────────────────────────
-//   추첨 회차 표에서 경품 번호만 모으고, 중복을 없앤다.
-//   확정 전 임시 회차도 포함한다. [추첨 시작]을 누른 순간부터 이미 추첨한 경품이다 (spec A-12).
-//
-// 【알고 둘 것】
-//   Supabase 로는 여러 번의 저장을 하나로 묶을 수 없다(트랜잭션 없음). 5단계 도중에 DB 오류가 나면 일부만 저장된다.
-//   경품 목록은 행사 전에 몇 번 저장하는 정도라, 오류가 보이면 운영자가 다시 저장하면 된다.
-//   규칙 검사는 4단계에서 끝나므로, 규칙 위반 때문에 중간에 멈추는 일은 없다.
+import { NextResponse, type NextRequest } from "next/server";
+import { requireAdminApi } from "@/lib/admin-session";
+import { apiError, toErrorResponse } from "@/lib/api-error";
+import { loadPrizes, toPrizeResponse } from "@/lib/admin-query";
+import { splitPrizeChanges } from "@/lib/draw-state";
+import { getSupabase } from "@/lib/supabase-server";
+import { DbError } from "@/lib/status-query";
 
-export {};
+// GET·PUT /api/admin/prizes — 경품 목록 조회와 저장 (spec 5.3, A-12, D-19)
+
+// 경품을 추첨 순서대로, 이미 추첨했는지(drawn)를 붙여 돌려준다. 콘솔은 drawn 인 줄의 입력란을 막는다.
+export async function GET() {
+  const denied = await requireAdminApi();
+  if (denied) return denied;
+
+  try {
+    const { prizes, drawnIds } = await loadPrizes();
+    return NextResponse.json({ prizes: toPrizeResponse(prizes, drawnIds) });
+  } catch (e) {
+    return toErrorResponse(e, "[GET /api/admin/prizes]");
+  }
+}
+
+// 화면의 경품 목록 전체를 받아 DB 를 그 목록과 같게 만든다.
+// Supabase 로는 여러 저장을 하나로 묶을 수 없어, 저장 도중 DB 오류가 나면 일부만 저장된다.
+// 행사 전에 몇 번 저장하는 정도라 오류가 보이면 다시 저장하면 된다. 규칙 검사는 저장 전에 끝난다.
+export async function PUT(request: NextRequest) {
+  const denied = await requireAdminApi();
+  if (denied) return denied;
+
+  let body: { prizes?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return apiError("INVALID_BODY");
+  }
+  if (!Array.isArray(body?.prizes)) return apiError("INVALID_BODY");
+
+  try {
+    const { prizes: current, drawnIds } = await loadPrizes();
+    // 규칙에 어긋나면 여기서 던지고 DB 는 하나도 바뀌지 않는다.
+    const { toInsert, toUpdate, toDelete } = splitPrizeChanges(current, body.prizes, drawnIds);
+
+    const supabase = getSupabase();
+    // 순서: 삭제 → 수정 → 추가
+    if (toDelete.length > 0) {
+      const { error } = await supabase.from("prizes").delete().in("id", toDelete);
+      if (error) throw new DbError(error.message);
+    }
+    for (const p of toUpdate) {
+      const { error } = await supabase
+        .from("prizes")
+        .update({ name: p.name, winner_count: p.winnerCount, sort: p.sort })
+        .eq("id", p.id);
+      if (error) throw new DbError(error.message);
+    }
+    if (toInsert.length > 0) {
+      const { error } = await supabase
+        .from("prizes")
+        .insert(toInsert.map((p) => ({ name: p.name, winner_count: p.winnerCount, sort: p.sort })));
+      if (error) throw new DbError(error.message);
+    }
+
+    const saved = await loadPrizes();
+    return NextResponse.json({ prizes: toPrizeResponse(saved.prizes, saved.drawnIds) });
+  } catch (e) {
+    return toErrorResponse(e, "[PUT /api/admin/prizes]");
+  }
+}

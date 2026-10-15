@@ -1,28 +1,39 @@
-// GET /api/admin/export — 참가자 현황 CSV 내려받기 (spec 5.3 export, A-23, D-17)
-//
-// 의사 코드 (작업 7). 아직 구현 전이다.
-//
-// 【이 API 가 하는 일】
-//   콘솔의 [CSV 내려받기] 링크가 부른다. 전체 참가자 현황을 엑셀에서 열 수 있는 CSV 파일로 내려보낸다.
-//
-// 【처리 순서】
-//   1. 로그인했는지 확인한다.
-//      링크로 여는 것이라 쿠키가 자동으로 함께 간다. 로그인이 안 됐으면 브라우저에 오류 글자가 그대로 보인다.
-//      콘솔에서만 누르는 링크라 그대로 둔다.
-//   2. 참가자 현황 전체를 읽는다 (admin-query 기능 6). 콘솔 목록과 같은 데이터다.
-//   3. 참가자마다 CSV 한 줄에 들어갈 값을 만든다.
-//      - 참가번호
-//      - 구역별 인증 시각: 반드시 구역 순서(sort)대로 놓는다. 순서가 틀리면 열이 밀린다. CSV 함수는 이것을 검사하지 않는다.
-//      - 완주 여부
-//      - 당첨 경품 이름 목록 (확정만, 경품 순서대로)
-//      - 지급 시각 목록 (당첨 경품과 같은 순서)
-//   4. CSV 글자를 만든다 (buildCsv). BOM, 줄 끝(CRLF), 한국 시간 변환은 이 함수가 이미 처리한다.
-//   5. 파일로 내려받아지도록 응답 정보를 붙여 돌려준다.
-//      - 종류: CSV (UTF-8)
-//      - 내려받기 파일 이름: stamp-tour-날짜-시각.csv (한국 시간)
-//      - 캐시하지 않음
-//
-// 【이렇게 정한 이유】
-//   파일 이름은 영문과 숫자만 쓴다. 한글 파일 이름은 브라우저마다 다르게 깨질 수 있다.
+import { requireAdminApi } from "@/lib/admin-session";
+import { toErrorResponse } from "@/lib/api-error";
+import { loadParticipantRows } from "@/lib/admin-query";
+import { buildCsv, formatTime } from "@/lib/csv";
 
-export {};
+// GET /api/admin/export — 참가자 현황 CSV 내려받기 (spec 5.3 export, A-23, D-17)
+// 콘솔의 [CSV 내려받기] 링크가 부른다. 링크라서 로그인이 풀렸으면 브라우저에 오류 JSON 이 그대로 보인다.
+// 콘솔에서만 누르는 링크라 그대로 둔다.
+export async function GET() {
+  const denied = await requireAdminApi();
+  if (denied) return denied;
+
+  try {
+    const { zones, rows } = await loadParticipantRows();
+    // visitedAt 은 loadParticipantRows 가 구역 sort 순서대로 채운다. 순서가 틀리면 열이 밀린다.
+    const csv = buildCsv(
+      zones,
+      rows.map((r) => ({
+        participantNo: r.participantNo,
+        visitedAt: r.visitedAt,
+        completed: r.completed,
+        prizes: r.wins.map((w) => w.prizeName),
+      })),
+    );
+
+    // 파일 이름은 영문·숫자만. 한글 파일 이름은 브라우저마다 다르게 깨질 수 있다.
+    // formatTime 결과 "2026-10-27 17:05:00" → "2026-10-27-170500"
+    const stamp = formatTime(new Date().toISOString()).replace(" ", "-").replace(/:/g, "");
+    return new Response(csv, {
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="stamp-tour-${stamp}.csv"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  } catch (e) {
+    return toErrorResponse(e, "[GET /api/admin/export]");
+  }
+}

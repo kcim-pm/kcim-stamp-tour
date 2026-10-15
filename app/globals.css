@@ -263,23 +263,143 @@ button, input { font-family: inherit; }
   .qr-box { width: 12cm; }
 }
 
-/* ── 의사 코드 (작업 8·9, 아직 구현 전): 관리자 콘솔·발표 화면 클래스 ─────────────
-   spec 3.2 동작 규칙과 같이 색·형태는 여기에 두고 화면은 클래스만 붙인다. 기존 토큰(--accent, --red 등)을 쓴다.
+/* ── 관리자 공통 ── */
+.btn-ghost {
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.btn-ghost:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.btn-ghost:disabled { opacity: 0.45; cursor: default; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--accent-deep); color: #fff; }
+.btn-danger { color: var(--red); border-color: var(--red-line); }
+.btn-danger:hover:not(:disabled) { border-color: var(--red); color: var(--red); }
+.text-error { color: var(--red); font-size: 13px; font-weight: 700; }
+.text-ok { color: var(--green); font-size: 13px; font-weight: 700; }
 
-   콘솔 (노트북, 폭 1280px 안팎)
-     .console           넓은 틀. max-width 1200px, 가운데 정렬. 참가자 화면의 .screen 폭 제한을 쓰지 않는다
-     .console-header    제목과 상단 버튼 5개를 한 줄에. 좁으면 줄바꿈
-     .stat-grid         통계 4칸 + 지급 진행률 막대
-     .admin-table       참가자 목록 표. 머리글 고정(position: sticky), 줄무늬, 숫자 열 가운데 정렬
-     .switch            자동 갱신 스위치
+/* 자동 갱신 스위치. <label class="switch"><input type="checkbox"><span class="switch-track"></span>글자</label> */
+.switch { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; cursor: pointer; user-select: none; }
+.switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.switch-track { position: relative; width: 40px; height: 22px; border-radius: 999px; background: var(--line); transition: background 0.2s; flex: none; }
+.switch-track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.2s; }
+.switch input:checked + .switch-track { background: var(--accent); }
+.switch input:checked + .switch-track::after { transform: translateX(18px); }
+.switch input:focus-visible + .switch-track { outline: 2px solid var(--accent-deep); outline-offset: 2px; }
 
-   발표 화면 (프로젝터, 16:9)
-     .draw-screen       100vw x 100vh, overflow hidden. 격자: 왼쪽 본문 3fr | 오른쪽 패널 1fr
-     .draw-prize        「N등 경품」 라벨 + 경품 이름 (clamp 로 화면 크기에 맞춰 크게)
-     .winner-grid       --cols 변수로 5열 또는 10열. 칸 안 번호는 뒷줄에서도 읽히게 매우 크게
-     .winner-cell.is-selected   부재자로 고른 칸 (빨간 테두리)
-     .winner-cell.is-new        재추첨으로 새로 뽑힌 칸 (잠깐 강조)
-     .winners-panel     우측 패널. 안쪽만 세로 스크롤
-     .draw-controls     하단 버튼 줄. 위치 고정, 단계에 맞지 않는 버튼은 흐리게(disabled)
-     연출 애니메이션은 prefers-reduced-motion 이면 끈다 (참가자 화면과 같은 규칙)
-*/
+/* ── 관리자 콘솔 (노트북, 폭 1280px 안팎) ── */
+.console { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; display: flex; flex-direction: column; gap: 16px; }
+.console-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.console-header h1 { margin: 0; font-size: 22px; font-weight: 900; }
+.console-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.console-section { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+.console-section h2 { margin: 0; font-size: 17px; font-weight: 900; }
+.console-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+
+.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr) 1.4fr; gap: 12px; }
+.stat { background: var(--gray-bg); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.stat-label { font-size: 12px; color: var(--muted); font-weight: 700; }
+.stat-value { font-size: 28px; font-weight: 900; line-height: 1.1; }
+@media (max-width: 860px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } }
+
+.table-wrap { max-height: 70vh; overflow: auto; border: 1px solid var(--line); border-radius: 12px; }
+.admin-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.admin-table th { position: sticky; top: 0; z-index: 1; background: var(--accent-soft); color: var(--ink-soft); font-size: 12px; font-weight: 700; padding: 8px 10px; text-align: left; white-space: nowrap; }
+.admin-table td { padding: 7px 10px; border-top: 1px solid var(--line); vertical-align: top; }
+.admin-table tbody tr:nth-child(even) td { background: #faf9ff; }
+.admin-table .num { text-align: center; }
+.admin-table .zone-ok { color: var(--green); font-weight: 900; }
+.admin-table .zone-no { color: var(--muted-2); }
+.admin-table input[type="text"], .admin-table input[type="number"] {
+  width: 100%; min-width: 60px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; color: var(--ink); background: #fff;
+}
+.admin-table input.is-invalid { border-color: var(--red); background: var(--red-bg); }
+.win-line { display: flex; align-items: center; gap: 6px; min-height: 24px; white-space: nowrap; }
+.empty { padding: 24px; text-align: center; color: var(--muted); }
+
+/* ── 추첨·발표 화면 (프로젝터, 16:9) ── */
+.draw-screen {
+  width: 100vw; height: 100vh; overflow: hidden;
+  display: grid; grid-template-columns: 3fr 1fr; grid-template-rows: 100%;
+  gap: 2vh; padding: 2.5vh 2vw;
+}
+.draw-main { display: flex; flex-direction: column; gap: 2vh; min-height: 0; min-width: 0; }
+.draw-header { font-size: clamp(14px, 1.6vw, 24px); font-weight: 900; letter-spacing: 1px; color: var(--accent); }
+.draw-prize { display: flex; justify-content: space-between; align-items: flex-end; gap: 2vw; }
+.draw-prize-name { font-size: clamp(32px, 4.4vw, 80px); font-weight: 900; line-height: 1.05; }
+.draw-prize-count { font-size: clamp(18px, 2.2vw, 40px); font-weight: 900; color: var(--accent); white-space: nowrap; }
+.draw-stage {
+  flex: 1; min-height: 0; overflow: auto;
+  background: rgba(255, 255, 255, 0.75); border: 1px solid var(--line); border-radius: 24px;
+  padding: 3vh 2vw; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2.5vh; text-align: center;
+}
+.draw-big { font-size: clamp(28px, 3.6vw, 64px); font-weight: 900; }
+.draw-note { font-size: clamp(14px, 1.4vw, 22px); color: var(--ink-soft); font-weight: 700; }
+.draw-setup { display: flex; flex-direction: column; align-items: center; gap: 2vh; font-size: clamp(16px, 1.6vw, 26px); font-weight: 700; }
+.draw-setup .switch { font-size: inherit; }
+.draw-setup input[type="number"] {
+  width: 5em; padding: 6px 10px; font-size: inherit; font-weight: 900; text-align: center;
+  border: 2px solid var(--line); border-radius: 12px; color: var(--ink);
+}
+.draw-shuffle { font-size: clamp(80px, 16vw, 260px); font-weight: 900; color: var(--accent); font-variant-numeric: tabular-nums; animation: pop 0.3s ease-out; }
+.draw-actions { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+.draw-actions .btn-ghost, .draw-controls .btn-ghost { height: clamp(40px, 5.5vh, 64px); padding: 0 clamp(14px, 1.6vw, 28px); font-size: clamp(14px, 1.4vw, 22px); border-radius: 14px; }
+.draw-controls { display: flex; justify-content: center; gap: 12px; }
+/* 종료 화면. 참가자 완주 카드의 .trophy·.confetti 를 프로젝터 크기로 키운다. */
+.draw-finish {
+  position: relative; align-self: stretch; flex: 1; min-height: 0; overflow: hidden;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.6vh;
+  animation: rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.draw-finish .trophy { width: clamp(120px, 13vw, 240px); height: clamp(120px, 13vw, 240px); margin-bottom: 2vh; }
+.draw-finish .trophy-inner { width: 88%; height: 88%; }
+.draw-finish .trophy-inner svg { width: 52%; height: 52%; }
+.draw-finish .confetti { width: clamp(12px, 1.1vw, 20px); height: clamp(16px, 1.5vw, 28px); }
+.draw-finish-label { font-size: clamp(14px, 1.5vw, 26px); font-weight: 900; letter-spacing: 0.3em; color: var(--accent); }
+.draw-finish-title {
+  font-size: clamp(40px, 6vw, 112px); font-weight: 900; line-height: 1.1;
+  animation: pop 0.9s 0.4s cubic-bezier(0.2, 0.9, 0.2, 1.3) both;
+}
+.draw-finish-sub { font-size: clamp(18px, 2vw, 36px); font-weight: 700; color: var(--ink-soft); }
+
+.draw-error { background: var(--red-bg); border: 1px solid var(--red-line); color: var(--red); border-radius: 12px; padding: 1vh 1.5vw; font-weight: 700; font-size: clamp(14px, 1.3vw, 20px); }
+
+/* 줄이 덜 차도(예: 3명, 7명) 카드가 가운데로 모이게 grid 대신 flex 줄바꿈을 쓴다.
+   카드 너비는 「한 줄에 --cols 개」가 들어가는 폭으로 고정한다. */
+.winner-grid { --cols: 5; --gap-x: 1vw; width: 100%; display: flex; flex-wrap: wrap; justify-content: center; gap: 1.4vh var(--gap-x); }
+.winner-cell {
+  flex: 0 0 calc((100% - (var(--cols) - 1) * var(--gap-x)) / var(--cols));
+  border: 3px solid transparent; border-radius: 18px; background: #fff; box-shadow: 0 4px 0 var(--line);
+  padding: 1.4vh 0.6vw; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1vh;
+  font: inherit; color: var(--ink);
+}
+button.winner-cell { cursor: pointer; }
+.winner-no { font-size: clamp(36px, calc(30vw / var(--cols)), 140px); font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
+.winner-cell.is-selected { border-color: var(--red); background: var(--red-bg); color: var(--red); }
+.winner-cell.is-new { animation: pop 0.6s cubic-bezier(0.2, 0.9, 0.2, 1.3) both; border-color: #ffab2e; }
+
+.winners-panel {
+  background: #fff; border: 1px solid var(--line); border-radius: 20px; padding: 2vh 1vw;
+  display: flex; flex-direction: column; gap: 1.5vh; min-height: 0; overflow-y: auto;
+}
+.winners-panel h2 { margin: 0; font-size: clamp(16px, 1.5vw, 24px); font-weight: 900; }
+.panel-prize h3 { margin: 0 0 6px; font-size: clamp(13px, 1.1vw, 18px); font-weight: 900; }
+.panel-prize.is-waiting h3 { color: var(--muted-2); font-weight: 700; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { background: var(--accent-soft); color: var(--accent-deep); border-radius: 8px; padding: 2px 8px; font-size: clamp(12px, 1vw, 16px); font-weight: 900; }
+
+.overlay { position: fixed; inset: 0; background: rgba(43, 37, 80, 0.45); display: flex; align-items: center; justify-content: center; padding: 4vh 4vw; z-index: 10; }
+.overlay-box { background: #fff; border-radius: 24px; padding: 3vh 2vw; width: min(1400px, 100%); max-height: 100%; overflow: auto; display: flex; flex-direction: column; gap: 2vh; }
+.history-list { display: flex; flex-wrap: wrap; gap: 8px; }

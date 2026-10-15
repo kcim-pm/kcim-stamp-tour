@@ -1,24 +1,27 @@
-// GET /api/admin/participants?filter=all|uncollected — 콘솔의 통계와 참가자 목록 (spec 5.3, A-04, A-05, A-07)
-//
-// 의사 코드 (작업 7). 아직 구현 전이다.
-//
-// 【이 API 가 하는 일】
-//   관리자 콘솔이 1분마다, 그리고 [새로고침]을 누를 때 부른다.
-//   맨 위 통계 숫자와 참가자 목록을 한 번에 돌려준다.
-//
-// 【처리 순서】
-//   1. 로그인했는지 확인한다. 안 했으면 401 로 끝낸다.
-//   2. 주소의 filter 값을 읽는다. 없으면 「전체(all)」로 본다.
-//      all, uncollected 둘 중 하나가 아니면 400 INVALID_BODY 로 끝낸다.
-//   3. 참가자 현황 전체를 읽는다 (admin-query 기능 6).
-//   4. 통계를 계산한다 (기능 7). 통계는 필터와 상관없이 항상 전체 참가자 기준이다.
-//   5. 필터가 uncollected 면 「완주자 중 선물 미지급자」만 남긴다 (기능 8).
-//   6. 통계, 구역 목록(zones), 참가자 목록을 돌려준다. 목록은 참가번호 순서다.
-//      구역 목록은 3단계에서 함께 읽은 것을 구역 순서대로 코드와 이름만 담는다. 콘솔이 표의 열 제목으로 쓴다 (spec 5.3).
-//   7. 중간에 DB 오류가 나면 500 DB_ERROR 로 돌려준다.
-//
-// 【구현 뒤 확인할 것】
-//   관리자 데이터는 캐시되면 안 된다. 로컬에서 [새로고침]을 두 번 누르는 사이에 방문을 하나 추가해
-//   숫자가 바뀌는지 확인한다.
+import { NextResponse } from "next/server";
+import { requireAdminApi } from "@/lib/admin-session";
+import { toErrorResponse } from "@/lib/api-error";
+import { buildStats, loadParticipantRows } from "@/lib/admin-query";
 
-export {};
+// GET /api/admin/participants — 콘솔의 통계와 참가자 목록 (spec 5.3, A-04, A-05)
+// 콘솔이 1분마다, 그리고 [새로고침]을 누를 때 부른다.
+export async function GET() {
+  const denied = await requireAdminApi();
+  if (denied) return denied;
+
+  try {
+    const { zones, rows } = await loadParticipantRows();
+    return NextResponse.json({
+      stats: buildStats(rows),
+      zones,
+      participants: rows.map(({ participantNo, visits, completed, wins }) => ({
+        participantNo,
+        visits,
+        completed,
+        wins,
+      })),
+    });
+  } catch (e) {
+    return toErrorResponse(e, "[GET /api/admin/participants]");
+  }
+}

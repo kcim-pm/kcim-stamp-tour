@@ -6,7 +6,7 @@
 
 // 엑셀이 UTF-8 로 읽어 한글이 깨지지 않게 맨 앞에 붙인다.
 // 이스케이프로 쓴다. 글자 그대로 넣으면 보이지 않아 에디터가 지워도 모른다.
-const BOM = "﻿";
+const BOM = "\uFEFF";
 // 엑셀 기준 줄 끝. 마지막 줄 뒤에도 붙인다.
 const CRLF = "\r\n";
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
@@ -18,7 +18,6 @@ export type CsvRow = {
   visitedAt: (string | null)[]; // zones 와 같은 길이. 미방문은 null
   completed: boolean;
   prizes: string[]; // 확정(confirmed)된 당첨 경품 이름만
-  giftGivenAt: (string | null)[]; // prizes 와 같은 길이. 미지급은 null
 };
 
 // 쉼표, 큰따옴표, 줄바꿈이 있으면 전체를 큰따옴표로 감싸고 안의 큰따옴표는 두 개로.
@@ -45,14 +44,13 @@ export function formatTime(iso: string | null): string {
 // visitedAt 의 길이·순서가 zones 와 같은지는 검사하지 않는다. 호출자(GET /api/admin/export)가
 // 구역 sort 순서대로 채워야 열이 밀리지 않는다.
 export function buildCsv(zones: CsvZone[], rows: CsvRow[]): string {
-  const header = ["참가번호", ...zones.map((z) => z.name), "완주", "당첨 경품", "지급 시각"];
+  const header = ["참가번호", ...zones.map((z) => z.name), "완주", "당첨 경품"];
 
   const body = rows.map((r) => [
     String(r.participantNo),
     ...r.visitedAt.map(formatTime),
     r.completed ? "Y" : "",
     r.prizes.join(";"),
-    r.giftGivenAt.map(formatTime).join(";"),
   ]);
 
   const lines = [header, ...body].map((cells) => cells.map(escapeField).join(","));

@@ -1,40 +1,236 @@
-// 경품 목록 등록·수정 (클라이언트). spec 3.3 「경품 목록」, A-12, D-19
-//
-// 의사 코드 (작업 8). 아직 구현 전이다.
-//
-// 【이 컴포넌트가 하는 일】
-//   행사 전에 경품(등급, 이름, 당첨 인원, 순서)을 등록하고 고친다. 추첨은 이 순서대로 진행된다.
-//   이미 추첨한 경품은 고칠 수 없게 잠근다.
-//
-// 【기억하는 값】
-//   - 편집 중인 경품 표 (각 줄: 경품 번호(새 줄은 없음), 등급, 이름, 당첨 인원, 순서, 이미 추첨했는지)
-//   - 저장하지 않은 변경이 있는지
-//   - 저장 중인지
-//   - 알림 문구 (「저장했습니다」 또는 오류 문구)
-//
-// 【기능 1: 불러오기】
-//   처음 열 때 경품 목록 API 를 불러 표를 채운다. 「저장하지 않은 변경 없음」으로 둔다.
-//   1분 자동 갱신에는 넣지 않는다. 입력하는 도중에 갱신되면 고치던 값이 덮어써지기 때문이다.
-//
-// 【기능 2: 편집】
-//   - [+ 경품 추가]: 표 끝에 빈 줄을 추가한다. 순서 칸에는 마지막 순서 + 1 을 미리 넣는다.
-//   - 줄 삭제: 아직 추첨하지 않은 줄만 표에서 뺀다.
-//   - 값 고치기: 아직 추첨하지 않은 줄의 입력란만 고칠 수 있다. 고치면 「저장하지 않은 변경 있음」.
-//   - 이미 추첨한 줄: 입력란 대신 글자로 보여 주고 「추첨함」 표시를 붙인다. 삭제 버튼도 없다.
-//     (서버도 PRIZE_ALREADY_DRAWN 으로 막지만, 화면에서 먼저 막아 헷갈리지 않게 한다)
-//
-// 【기능 3: 저장】
-//   1. 화면에서 먼저 검사한다: 이름이 비었거나, 등급·당첨 인원·순서가 정수가 아니거나, 당첨 인원이 1보다 작으면
-//      그 칸을 빨갛게 표시하고 멈춘다. (서버도 같은 검사를 한다. 화면 검사는 빨리 알려 주기 위한 것이다)
-//   2. 표 전체를 경품 저장 API 로 보낸다. 새 줄은 경품 번호 없이 보낸다 (spec 5.3 「id 가 없으면 새로 만든다」).
-//   3. 성공하면 응답으로 표를 다시 채우고 「저장했습니다」를 보여 준다.
-//   4. 실패하면 오류 문구를 보여 준다.
-//      「이미 추첨한 경품」 오류면, 그사이 발표 화면에서 추첨한 것이므로 목록을 다시 불러온다.
-//
-// 【화면】
-//   제목 「경품 목록」, 안내문 「위에서부터 순서대로 추첨합니다. 추첨한 경품은 수정할 수 없습니다.」
-//   표: 순서 | 등급 | 이름 | 당첨 인원 | 삭제 (순서 오름차순)
-//   [+ 경품 추가] [저장] (변경이 없거나 저장 중이면 막음), 알림 문구
-//   【선택】 저장하지 않고 페이지를 떠나려 하면 한 번 묻는다.
+"use client";
 
-export {};
+// 경품 목록 등록·수정 (클라이언트). spec 3.3 「경품 목록」, A-12, D-19
+// 행사 전에 경품(이름, 당첨 인원)을 등록하고 고친다. 등급은 「5등 커피」처럼 이름에 적는다. 추첨은 표의 줄 순서대로 진행된다.
+// 순서 숫자는 입력하지 않는다. [↑][↓]로 줄을 옮기고, 저장할 때 위에서부터 sort 를 매긴다 (assignPrizeSorts).
+// 이미 추첨한 경품은 맨 위에 고정하고 글자로만 보여 준다. 서버도 PRIZE_ALREADY_DRAWN 으로 막지만 화면에서 먼저 막는다.
+// 1분 자동 갱신에는 넣지 않는다. 입력하는 도중에 갱신되면 고치던 값이 덮어써지기 때문이다.
+import { useCallback, useEffect, useState } from "react";
+import { adminFetch, errorMessage } from "@/lib/admin-fetch";
+import type { PrizeResponse } from "@/lib/admin-query";
+import { assignPrizeSorts, orderPrizesForEditing } from "@/lib/draw-state";
+
+// 입력란 값은 글자 그대로 둔다. 숫자 검사는 저장할 때 한다.
+type EditRow = {
+  key: string; // 화면에서만 쓰는 줄 구분값. 새 줄은 id 가 없어서 필요하다
+  id: number | null;
+  name: string;
+  winnerCount: string;
+  sort: number | null; // 서버에서 받은 값. 추첨한 경품은 저장할 때 그대로 보낸다. 새 줄은 null
+  drawn: boolean;
+};
+type Field = "name" | "winnerCount";
+
+let newKeySeq = 0;
+const toEditRow = (p: PrizeResponse): EditRow => ({
+  key: `p${p.id}`,
+  id: p.id,
+  name: p.name,
+  winnerCount: String(p.winnerCount),
+  sort: p.sort,
+  drawn: p.drawn,
+});
+const toEditRows = (prizes: PrizeResponse[]) => orderPrizesForEditing(prizes.map(toEditRow));
+
+const isInt = (s: string) => /^-?\d+$/.test(s.trim());
+
+// 틀린 칸 목록. 비어 있으면 저장할 수 있다.
+function invalidFields(r: EditRow): Field[] {
+  const bad: Field[] = [];
+  if (r.name.trim() === "") bad.push("name");
+  if (!isInt(r.winnerCount) || Number(r.winnerCount) < 1) bad.push("winnerCount");
+  return bad;
+}
+
+export function PrizeEditor() {
+  const [rows, setRows] = useState<EditRow[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+  const [showErrors, setShowErrors] = useState(false);
+
+  const load = useCallback(async () => {
+    const result = await adminFetch<{ prizes: PrizeResponse[] }>("/api/admin/prizes");
+    if (result.ok) {
+      setRows(toEditRows(result.data.prizes));
+      setDirty(false);
+      setShowErrors(false);
+      setLoaded(true);
+    } else {
+      setNotice({ kind: "error", text: errorMessage(result.code) });
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // 저장하지 않고 페이지를 떠나려 하면 한 번 묻는다.
+  useEffect(() => {
+    if (!dirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [dirty]);
+
+  function changed(next: EditRow[]) {
+    setRows(next);
+    setDirty(true);
+    setNotice(null);
+  }
+
+  function edit(key: string, field: Field, value: string) {
+    changed(rows.map((r) => (r.key === key ? { ...r, [field]: value } : r)));
+  }
+
+  function addRow() {
+    changed([...rows, { key: `new${++newKeySeq}`, id: null, name: "", winnerCount: "", sort: null, drawn: false }]);
+  }
+
+  function removeRow(key: string) {
+    changed(rows.filter((r) => r.key !== key));
+  }
+
+  // 추첨하지 않은 줄끼리만 자리를 바꾼다. 추첨한 경품 위로는 올라가지 않는다.
+  function move(index: number, step: -1 | 1) {
+    const target = index + step;
+    if (target < 0 || target >= rows.length || rows[target].drawn) return;
+    const next = [...rows];
+    [next[index], next[target]] = [next[target], next[index]];
+    changed(next);
+  }
+
+  async function save() {
+    if (rows.some((r) => invalidFields(r).length > 0)) {
+      setShowErrors(true);
+      setNotice({ kind: "error", text: "빨갛게 표시된 칸을 고쳐 주세요" });
+      return;
+    }
+    setSaving(true);
+    const sorts = assignPrizeSorts(rows);
+    // 새 줄은 id 없이 보낸다 (spec 5.3 「id 가 없으면 새로 만든다」)
+    const prizes = rows.map((r, i) => ({
+      ...(r.id !== null && { id: r.id }),
+      name: r.name.trim(),
+      winnerCount: Number(r.winnerCount),
+      sort: sorts[i],
+    }));
+    const result = await adminFetch<{ prizes: PrizeResponse[] }>("/api/admin/prizes", { method: "PUT", body: { prizes } });
+    if (result.ok) {
+      setRows(toEditRows(result.data.prizes));
+      setDirty(false);
+      setShowErrors(false);
+      setNotice({ kind: "ok", text: "저장했습니다" });
+    } else {
+      setNotice({ kind: "error", text: errorMessage(result.code) });
+      // 그사이 발표 화면에서 추첨한 것이므로 목록을 다시 불러온다.
+      if (result.code === "PRIZE_ALREADY_DRAWN") await load();
+    }
+    setSaving(false);
+  }
+
+  const input = (r: EditRow, field: Field, type: "text" | "number") => (
+    <input
+      type={type}
+      value={r[field]}
+      className={showErrors && invalidFields(r).includes(field) ? "is-invalid" : undefined}
+      onChange={(e) => edit(r.key, field, e.target.value)}
+      aria-label={field}
+    />
+  );
+
+  return (
+    <section className="console-section" id="prizes">
+      <h2>경품 목록</h2>
+      <p className="hint" style={{ margin: 0 }}>
+        위에서부터 순서대로 추첨합니다. [↑][↓]로 순서를 바꿉니다. 추첨한 경품은 맨 위에 고정되며 수정할 수 없습니다.
+      </p>
+      {!loaded ? (
+        <div className="empty">{notice?.text ?? "불러오는 중…"}</div>
+      ) : (
+        <div className="table-wrap" style={{ maxHeight: "none" }}>
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th className="num" style={{ width: 60 }}>
+                  순서
+                </th>
+                <th>이름</th>
+                <th style={{ width: 110 }}>당첨 인원</th>
+                <th className="num" style={{ width: 100 }}>
+                  이동
+                </th>
+                <th className="num" style={{ width: 90 }}>
+                  삭제
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="empty">
+                    경품이 없습니다
+                  </td>
+                </tr>
+              )}
+              {rows.map((r, i) =>
+                r.drawn ? (
+                  <tr key={r.key}>
+                    <td className="num">{i + 1}</td>
+                    <td>
+                      {r.name} <span className="badge">추첨함</span>
+                    </td>
+                    <td>{r.winnerCount}명</td>
+                    <td />
+                    <td />
+                  </tr>
+                ) : (
+                  <tr key={r.key}>
+                    <td className="num">{i + 1}</td>
+                    <td>{input(r, "name", "text")}</td>
+                    <td>{input(r, "winnerCount", "number")}</td>
+                    <td className="num" style={{ whiteSpace: "nowrap" }}>
+                      <button
+                        className="btn-ghost"
+                        style={{ height: 30, padding: "0 10px" }}
+                        disabled={saving || i === 0 || rows[i - 1].drawn}
+                        onClick={() => move(i, -1)}
+                        aria-label="위로"
+                      >
+                        ↑
+                      </button>{" "}
+                      <button
+                        className="btn-ghost"
+                        style={{ height: 30, padding: "0 10px" }}
+                        disabled={saving || i === rows.length - 1}
+                        onClick={() => move(i, 1)}
+                        aria-label="아래로"
+                      >
+                        ↓
+                      </button>
+                    </td>
+                    <td className="num">
+                      <button className="btn-ghost btn-danger" style={{ height: 30 }} onClick={() => removeRow(r.key)}>
+                        삭제
+                      </button>
+                    </td>
+                  </tr>
+                ),
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <div className="console-row">
+        <button className="btn-ghost" disabled={!loaded || saving} onClick={addRow}>
+          + 경품 추가
+        </button>
+        <button className="btn-ghost btn-primary" disabled={!dirty || saving} onClick={save}>
+          {saving ? "저장 중…" : "저장"}
+        </button>
+        {notice && loaded && <span className={notice.kind === "ok" ? "text-ok" : "text-error"}>{notice.text}</span>}
+      </div>
+    </section>
+  );
+}

@@ -1,76 +1,243 @@
+import "server-only";
+import { getSupabase } from "./supabase-server";
+import { DbError, loadZones } from "./status-query";
+import { isCompleted } from "./completion";
+import { pickCandidates } from "./draw";
+import type { DrawRow, DrawStatus, PrizeRecord, WinnerRow, WinnerStatus } from "./draw-state";
+
 // lib/admin-query.ts — 관리자 API 들이 함께 쓰는 DB 조회 (서버 전용, 단위 테스트 대상 아님)
 //
-// 의사 코드 (작업 7). 아직 구현 전이다.
-//
-// 【이 파일이 하는 일】
-//   DB 에서 데이터를 읽어, 규칙 함수(lib/draw.ts, lib/draw-state.ts)나 화면이 쓰기 좋은 모양으로 바꿔 준다.
-//   규칙 판단은 하지 않는다. 판단은 규칙 함수가 한다.
-//   status.ts(계산)와 status-query.ts(DB 조회)를 나눈 것과 같은 이유로 나눈다.
-//   DB 오류가 나면 status-query.ts 의 DbError 를 던진다. API 는 이것을 500 DB_ERROR 로 바꾼다.
-//
-// ─────────────────────────────────────────────
-// 【가장 중요한 주의점: Supabase 는 한 번에 1000행까지만 준다】
-//   방문 기록(visits)은 참가자 999명 × 구역 5곳이면 약 5000행이다.
-//   그냥 읽으면 1000행에서 잘리는데, 오류가 나지 않아서 잘린 줄 모른다.
-//   그러면 완주자 수, 추첨 후보, CSV 가 조용히 틀린다.
-//   그래서 행이 많을 수 있는 표는 반드시 아래 기능 0 으로 읽는다.
-//
-// 【기능 0: 끝까지 나눠 읽기 (selectAll)】
-//   1. 0번째부터 999번째 행까지 읽는다.
-//   2. 1000행이 꽉 차게 왔으면 뒤에 더 있을 수 있으므로, 다음 1000행을 읽는다.
-//   3. 1000행보다 적게 오면 끝까지 읽은 것이다. 지금까지 읽은 행을 모두 합쳐 돌려준다.
-//   나눠 읽을 때 행 순서가 매번 같아야 빠지거나 겹치는 행이 없다. 그래서 항상 기본키 순서로 정렬해서 읽는다.
-//
-// ─────────────────────────────────────────────
-// 【기능 1: 완주자 번호 목록 (loadCompletedNos)】
-//   1. 구역이 모두 몇 곳인지 센다.
-//   2. 방문 기록을 전부 읽고(기능 0), 참가번호마다 방문한 구역 수를 센다.
-//   3. 방문 수가 전체 구역 수와 같은 번호만 고른다 (isCompleted, spec 6장 「완주 판정」).
-//   4. 번호 오름차순으로 돌려준다.
-//
-// 【기능 2: 회차 전부 읽기 (loadDraws)】
-//   모든 추첨 회차를 읽는다. 회차마다 「어느 경품인지」와 「당첨 기록 목록」을 함께 붙여서 한 번에 가져온다.
-//   확정 전인 임시 회차도 포함한다. 회차는 경품 수 정도(10개 안팎)라 나눠 읽을 필요가 없다.
-//
-// 【기능 3: 회차 하나 읽기 (loadDraw)】
-//   기능 2 와 같은 내용을 회차 번호 하나로 좁혀 읽는다. 없으면 「없음」을 돌려준다.
-//
-// 【기능 4: 회차를 응답 모양으로 바꾸기 (toDrawResponse)】
-//   DB 이름(snake_case)을 응답 이름(camelCase)으로 바꾸고, spec 5.3 의 회차 모양으로 만든다.
-//   추첨·재추첨·확정 API 는 모두 「DB 를 고친 뒤 그 회차를 다시 읽어 이 모양으로」 돌려준다.
-//   응답 모양을 정하는 곳이 여기 한 곳뿐이라 화면과 어긋날 일이 적다.
-//
-//   당첨자 목록은 참가번호가 작은 순서로 정렬한다. 뽑힌 순서는 저장하지 않는다 (10/15 결정, spec 3.4·5.3).
-//
-// ─────────────────────────────────────────────
-// 【기능 5: 추첨 후보 구하기 (loadCandidates)】  spec 6장 「추첨 후보」
-//   1. 완주자 목록을 구한다 (기능 1).
-//   2. 이미 읽어 둔 회차 목록에서, 확정된 당첨자 번호를 모은다. 부재자는 모으지 않는다 (D-18: 다음 경품에서 다시 후보).
-//   3. 「이전 당첨자 제외」가 켜져 있으면 완주자에서 그 번호들을 뺀다 (pickCandidates).
-//   회차 목록을 새로 읽지 않고 받아서 쓰는 이유: 이 기능을 부르는 API 가 이미 읽어 두었기 때문이다.
-//
-// ─────────────────────────────────────────────
-// 【기능 6: 참가자 현황 전체 (loadParticipantRows)】  콘솔 목록과 CSV 가 함께 쓴다
-//   1. 구역 목록을 순서(sort)대로 읽는다.
-//   2. 참가자, 방문 기록, 확정 당첨 기록을 전부 읽는다 (기능 0). 당첨 기록에는 경품 이름과 순서를 붙여 읽는다.
-//   3. 참가자마다 한 줄씩 만든다.
-//      - 구역별 인증 시각: 구역 순서대로, 방문 안 한 구역은 비워 둔다
-//      - 완주 여부: 방문 구역 수가 전체와 같은지 (isCompleted)
-//      - 당첨 목록: 이 번호의 확정 당첨을 경품 순서대로. 경품마다 「회차 번호, 경품 이름, 지급 시각」
-//   4. 참가번호 순서로 돌려준다.
-//   확정 당첨만 넣는 이유: 임시 결과는 아직 당첨이 아니고, 부재자는 당첨자로 세지 않는다 (spec 4장).
-//
-// 【기능 7: 통계 (buildStats)】  콘솔 맨 위 숫자들
-//   - 전체 참가자: 줄 수
-//   - 완주자: 완주한 줄 수
-//   - 진행 중: 전체 − 완주자
-//   - 당첨: 모든 줄의 당첨 건수 합
-//   - 지급 완료: 그중 지급 시각이 있는 건수
-//   당첨·지급 완료 숫자는 사람 수가 아니라 「당첨 건수」다 (spec 5.3 participants).
-//     한 사람이 두 경품에 당첨되면(「이전 당첨자 제외」를 끈 경우) 2건으로 센다. 지급 진행률도 건수 기준이다.
-//
-// 【기능 8: 「완주자 중 선물 미지급자」 판정 (isUncollected)】  spec A-07
-//   완주했고, 확정 당첨 목록 중에 아직 지급하지 않은 것이 하나라도 있으면 해당한다.
-//   즉 「당첨됐는데 선물을 아직 못 받은 사람」이다 (10/15 확인, spec 5.3 participants).
+// DB 에서 읽어 규칙 함수(draw.ts, draw-state.ts)나 화면이 쓰기 좋은 모양으로 바꿔 준다. 규칙 판단은 하지 않는다.
+// status.ts(계산)와 status-query.ts(DB 조회)를 나눈 것과 같은 이유로 나눈다.
+// DB 오류는 DbError 로 던진다. API 는 이것을 500 DB_ERROR 로 바꾼다.
 
-export {};
+// ── 끝까지 나눠 읽기 ───────────────────────────────
+// Supabase 는 한 번에 1000행까지만 주고, 잘려도 오류가 나지 않는다.
+// visits 는 999명 × 5곳이면 약 5000행이라, 그냥 읽으면 완주자 수·추첨 후보·CSV 가 조용히 틀린다.
+// 행이 많을 수 있는 표는 반드시 이 함수로 읽는다. 나눠 읽는 동안 순서가 같도록 query 는 기본키 순서로 정렬해야 한다.
+const PAGE_SIZE = 1000;
+
+type PageResult<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
+
+async function selectAll<T>(query: (from: number, to: number) => PageResult<T>): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await query(from, from + PAGE_SIZE - 1);
+    if (error) throw new DbError(error.message);
+    rows.push(...(data ?? []));
+    if (!data || data.length < PAGE_SIZE) return rows;
+  }
+}
+
+// ── 완주자 번호 목록 ───────────────────────────────  spec 6장 「완주 판정」
+export async function loadCompletedNos(): Promise<number[]> {
+  const zoneCount = (await loadZones()).length;
+  const visits = await selectAll<{ participant_no: number }>((from, to) =>
+    getSupabase()
+      .from("visits")
+      .select("participant_no")
+      .order("participant_no")
+      .order("zone_id")
+      .range(from, to),
+  );
+
+  const countByNo = new Map<number, number>();
+  for (const v of visits) countByNo.set(v.participant_no, (countByNo.get(v.participant_no) ?? 0) + 1);
+
+  return [...countByNo]
+    .filter(([, count]) => isCompleted(count, zoneCount))
+    .map(([no]) => no)
+    .sort((a, b) => a - b);
+}
+
+// ── 회차 ───────────────────────────────────────────
+// 회차마다 경품과 당첨 기록을 붙여 한 번에 읽는다. 회차는 경품 수 정도라 나눠 읽지 않는다.
+export type DrawWithWinners = {
+  id: number;
+  prize_id: number;
+  winner_count: number;
+  exclude_previous: boolean;
+  status: DrawStatus;
+  created_at: string;
+  confirmed_at: string | null;
+  prize: { id: number; name: string };
+  winners: { participant_no: number; status: WinnerStatus }[];
+};
+
+const DRAW_COLUMNS =
+  "id, prize_id, winner_count, exclude_previous, status, created_at, confirmed_at, " +
+  "prize:prizes(id, name), winners:draw_winners(participant_no, status)";
+
+export async function loadDraws(): Promise<DrawWithWinners[]> {
+  const { data, error } = await getSupabase().from("draws").select(DRAW_COLUMNS).order("id");
+  if (error) throw new DbError(error.message);
+  return data as unknown as DrawWithWinners[];
+}
+
+// 없으면 null
+export async function loadDraw(id: number): Promise<DrawWithWinners | null> {
+  const { data, error } = await getSupabase().from("draws").select(DRAW_COLUMNS).eq("id", id).maybeSingle();
+  if (error) throw new DbError(error.message);
+  return data as unknown as DrawWithWinners | null;
+}
+
+// 규칙 함수(draw-state.ts)에 넘길 모양
+export const toDrawRow = (d: DrawWithWinners): DrawRow => ({ id: d.id, prize_id: d.prize_id, status: d.status });
+export const toWinnerRows = (d: DrawWithWinners): WinnerRow[] => d.winners.map((w) => ({ draw_id: d.id, ...w }));
+
+export type DrawResponse = {
+  id: number;
+  prize: { id: number; name: string };
+  winnerCount: number;
+  excludePrevious: boolean;
+  status: DrawStatus;
+  createdAt: string;
+  confirmedAt: string | null;
+  winners: { participantNo: number; status: WinnerStatus }[];
+};
+
+// spec 5.3 회차 모양. 추첨·재추첨·확정 API 는 DB 를 고친 뒤 그 회차를 다시 읽어 이 모양으로 돌려준다.
+// 당첨자는 참가번호 오름차순. 뽑힌 순서는 저장하지 않는다 (10/15 결정, spec 3.4·5.3).
+export function toDrawResponse(d: DrawWithWinners): DrawResponse {
+  return {
+    id: d.id,
+    prize: { id: d.prize.id, name: d.prize.name },
+    winnerCount: d.winner_count,
+    excludePrevious: d.exclude_previous,
+    status: d.status,
+    createdAt: d.created_at,
+    confirmedAt: d.confirmed_at,
+    winners: d.winners
+      .map((w) => ({ participantNo: w.participant_no, status: w.status }))
+      .sort((a, b) => a.participantNo - b.participantNo),
+  };
+}
+
+// ── 추첨 후보 ───────────────────────────────────────  spec 6장 「추첨 후보」
+// 이미 읽어 둔 회차 목록을 받아 쓴다. 완주자 목록도 이미 있으면 넘겨서 다시 읽지 않게 한다.
+// 확정 당첨자만 모은다. 부재자는 다음 경품에서 다시 후보다 (D-18).
+export async function loadCandidates(
+  draws: DrawWithWinners[],
+  excludePrevious: boolean,
+  completedNos?: number[],
+): Promise<number[]> {
+  const completed = completedNos ?? (await loadCompletedNos());
+  const confirmedNos = draws.flatMap((d) =>
+    d.winners.filter((w) => w.status === "confirmed").map((w) => w.participant_no),
+  );
+  return pickCandidates(completed, confirmedNos, excludePrevious);
+}
+
+// ── 경품 목록 ───────────────────────────────────────
+export type PrizeResponse = PrizeRecord & { drawn: boolean };
+
+// 추첨 순서(sort, 같으면 id)대로. 이미 추첨한 경품 번호도 함께 돌려준다.
+// 「이미 추첨한 경품」은 회차가 하나라도 있는 경품이다. 확정 전 임시 회차도 포함한다 (spec A-12).
+export async function loadPrizes(): Promise<{ prizes: PrizeRecord[]; drawnIds: number[] }> {
+  const supabase = getSupabase();
+  const [prizeResult, drawResult] = await Promise.all([
+    supabase.from("prizes").select("id, name, winner_count, sort").order("sort").order("id"),
+    supabase.from("draws").select("prize_id"),
+  ]);
+  if (prizeResult.error) throw new DbError(prizeResult.error.message);
+  if (drawResult.error) throw new DbError(drawResult.error.message);
+
+  const prizes = prizeResult.data.map((p) => ({
+    id: p.id,
+    name: p.name,
+    winnerCount: p.winner_count,
+    sort: p.sort,
+  }));
+  const drawnIds = [...new Set(drawResult.data.map((d) => d.prize_id as number))];
+  return { prizes, drawnIds };
+}
+
+export function toPrizeResponse(prizes: PrizeRecord[], drawnIds: number[]): PrizeResponse[] {
+  const drawn = new Set(drawnIds);
+  return prizes.map((p) => ({ ...p, drawn: drawn.has(p.id) }));
+}
+
+// ── 참가자 현황 전체 ─────────────────────────────────  콘솔 목록과 CSV 가 함께 쓴다
+export type ZoneColumn = { code: string; name: string };
+
+export type ParticipantWin = { drawId: number; prizeName: string };
+
+export type ParticipantRow = {
+  participantNo: number;
+  visits: Record<string, string | null>; // 키는 구역 code
+  visitedAt: (string | null)[]; // zones 순서와 같다. CSV 열이 밀리지 않게
+  completed: boolean;
+  wins: ParticipantWin[]; // 확정 당첨만, 경품 순서대로
+};
+
+type ConfirmedWinRow = {
+  draw_id: number;
+  participant_no: number;
+  draw: { prize: { name: string; sort: number } };
+};
+
+// 확정 당첨만 넣는다. 임시 결과는 아직 당첨이 아니고, 부재자는 당첨자로 세지 않는다 (spec 4장).
+export async function loadParticipantRows(): Promise<{ zones: ZoneColumn[]; rows: ParticipantRow[] }> {
+  const supabase = getSupabase();
+  const [zones, participants, visits, wins] = await Promise.all([
+    loadZones(),
+    selectAll<{ participant_no: number }>((from, to) =>
+      supabase.from("participants").select("participant_no").order("participant_no").range(from, to),
+    ),
+    selectAll<{ participant_no: number; zone_id: number; visited_at: string }>((from, to) =>
+      supabase
+        .from("visits")
+        .select("participant_no, zone_id, visited_at")
+        .order("participant_no")
+        .order("zone_id")
+        .range(from, to),
+    ),
+    selectAll<ConfirmedWinRow>(
+      (from, to) =>
+        supabase
+          .from("draw_winners")
+          .select("draw_id, participant_no, draw:draws(prize:prizes(name, sort))")
+          .eq("status", "confirmed")
+          .order("draw_id")
+          .order("participant_no")
+          .range(from, to) as unknown as PageResult<ConfirmedWinRow>,
+    ),
+  ]);
+
+  const visitsByNo = new Map<number, Map<number, string>>();
+  for (const v of visits) {
+    if (!visitsByNo.has(v.participant_no)) visitsByNo.set(v.participant_no, new Map());
+    visitsByNo.get(v.participant_no)!.set(v.zone_id, v.visited_at);
+  }
+
+  const winsByNo = new Map<number, (ParticipantWin & { sort: number })[]>();
+  for (const w of wins) {
+    const list = winsByNo.get(w.participant_no) ?? [];
+    list.push({ drawId: w.draw_id, prizeName: w.draw.prize.name, sort: w.draw.prize.sort });
+    winsByNo.set(w.participant_no, list);
+  }
+
+  const rows = participants.map(({ participant_no: no }) => {
+    const visited = visitsByNo.get(no) ?? new Map<number, string>();
+    const visitedAt = zones.map((z) => visited.get(z.id) ?? null);
+    return {
+      participantNo: no,
+      visits: Object.fromEntries(zones.map((z, i) => [z.code, visitedAt[i]])),
+      visitedAt,
+      completed: isCompleted(visited.size, zones.length),
+      wins: (winsByNo.get(no) ?? [])
+        .sort((a, b) => a.sort - b.sort || a.drawId - b.drawId)
+        .map(({ drawId, prizeName }) => ({ drawId, prizeName })),
+    };
+  });
+
+  return { zones: zones.map((z) => ({ code: z.code, name: z.name })), rows };
+}
+
+// ── 통계 ─────────────────────────────────────────────  콘솔 맨 위 숫자
+export type Stats = { total: number; completed: number; inProgress: number };
+
+export function buildStats(rows: ParticipantRow[]): Stats {
+  const completed = rows.filter((r) => r.completed).length;
+  return { total: rows.length, completed, inProgress: rows.length - completed };
+}

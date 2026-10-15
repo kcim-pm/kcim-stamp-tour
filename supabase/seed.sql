@@ -11,13 +11,13 @@ insert into zones (id, code, name, qr_token, sort) values
   (5, 'zone5', '구역 5', replace(gen_random_uuid()::text, '-', ''), 5);
 
 -- 임시 경품 목록. 실제 목록이 나오면 관리자 콘솔에서 바꾼다 (D-13).
--- sort 순서대로 추첨한다. 낮은 등급(5등)부터.
-insert into prizes (rank, name, winner_count, sort) values
-  (5, '5등 경품', 10, 1),
-  (4, '4등 경품',  5, 2),
-  (3, '3등 경품',  3, 3),
-  (2, '2등 경품',  2, 4),
-  (1, '1등 경품',  1, 5);
+-- sort 순서대로 추첨한다. 낮은 등급(5등)부터. 등급은 이름에 적는다 (rank 열은 없다).
+insert into prizes (name, winner_count, sort) values
+  ('5등 경품', 10, 1),
+  ('4등 경품',  5, 2),
+  ('3등 경품',  3, 3),
+  ('2등 경품',  2, 4),
+  ('1등 경품',  1, 5);
 
 -- 확인용: 넣은 결과를 바로 보여 준다.
 select id, code, name, qr_token, sort from zones order by sort;

@@ -23,10 +23,9 @@ create table visits (
 
 create table prizes (                  -- 경품 목록. D-13 확정 후 seed.sql 또는 관리자 콘솔로 입력
   id            serial primary key,
-  rank          smallint not null,     -- 등급. 5등처럼 숫자가 클수록 먼저 추첨한다
   name          text not null,
   winner_count  smallint not null check (winner_count > 0),
-  sort          smallint not null      -- 추첨 순서
+  sort          smallint not null      -- 추첨 순서. 콘솔 표의 줄 순서로 매긴다
 );
 
 create table draws (
@@ -45,7 +44,6 @@ create table draw_winners (
   participant_no  smallint references participants on delete cascade,
   status          text not null default 'pending'
                   check (status in ('pending', 'confirmed', 'absent')),  -- absent: 부재자로 재추첨됨
-  gift_given_at   timestamptz,           -- null이면 아직 주지 않았다
   primary key (draw_id, participant_no)   -- 한 회차에 같은 사람이 두 번 당첨될 수 없다
 );
 

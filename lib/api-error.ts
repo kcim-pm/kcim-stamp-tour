@@ -1,39 +1,48 @@
+import "server-only";
+import { NextResponse } from "next/server";
+
 // lib/api-error.ts — 오류 응답을 한 곳에서 만드는 도우미 (서버 전용)
 //
-// 의사 코드 (작업 7). 아직 구현 전이다.
+// lib/ 의 규칙 함수들은 규칙에 어긋나면 "DRAW_NOT_PENDING" 같은 코드를 던진다.
+// API 마다 코드 → HTTP 상태 표를 복사하지 않도록 짝을 이 파일 한 곳에 둔다. 응답 모양은 spec 5.1 { "error": "코드" }.
 //
-// 【이 파일이 하는 일】
-//   관리자 API 가 실패를 알릴 때 쓰는 응답을 만든다. 응답 모양은 spec 5.1 의 { "error": "코드" } 다.
-//
-// 【왜 필요한가】
-//   lib/ 의 규칙 함수들(추첨, 회차 상태, 참가번호 정규화)은 규칙에 어긋나면 "DRAW_NOT_PENDING" 같은 오류 코드를 던진다.
-//   API 는 그 코드를 받아 400인지 409인지 HTTP 상태를 골라야 한다.
-//   이 선택을 API 8개가 각자 하면 같은 표가 8번 복사되므로, 코드와 상태의 짝을 이 파일 한 곳에 둔다.
-//
-// 【기능 1: 코드와 HTTP 상태의 짝 표】
-//   spec 5.1 오류 표를 그대로 옮긴다.
-//   - 400: 요청 내용이 잘못됨 (본문이 JSON 아님, 참가번호·당첨 인원·선택 번호가 틀림)
-//   - 401: 로그인 안 됨, 비밀번호 틀림
-//   - 404: 없는 QR 토큰(INVALID_TOKEN), 없는 회차 번호(DRAW_NOT_FOUND)
-//   - 409: 지금 상태에서는 할 수 없는 조작 (확정 안 한 회차가 있음, 이미 지급함 등)
-//   - 500: DB 오류
-//
-// 【기능 2: 오류 응답 만들기 (apiError)】
-//   코드를 받아서, 표에서 HTTP 상태를 찾고, { "error": 코드 } 응답을 만든다.
-//
-// 【기능 3: 잡은 오류를 응답으로 바꾸기 (toErrorResponse)】
-//   API 의 try-catch 에서 잡은 오류를 넘기면 알맞은 응답을 돌려준다.
-//   1. 오류 메시지가 표에 있는 코드면, 규칙 함수가 일부러 던진 것이다. 그 코드로 응답한다.
-//   2. 그 밖의 오류(DB 연결 실패, 예상하지 못한 버그)는 서버 로그에 자세히 남기고, 응답은 DB_ERROR 로만 보낸다.
-//      자세한 내용을 응답에 넣지 않는 이유: 브라우저에 DB 구조나 내부 메시지가 보이지 않게 하려고.
-//
-// 【API 에서 쓰는 모양】
-//   모든 관리자 API 는 같은 틀을 따른다.
-//   1. 로그인했는지 확인한다 (requireAdminApi). 안 했으면 401 로 끝낸다.
+// 관리자 API 는 같은 틀을 따른다.
+//   1. const denied = await requireAdminApi(); if (denied) return denied;
 //   2. 본래 할 일을 try 안에서 한다.
-//   3. catch 에서는 toErrorResponse 를 부르기만 한다.
-//
-// 【참고】 lib/admin-session.ts 의 401 응답도 이 도우미로 바꿀 수 있다(선택).
-//   참가자 API(status, visit)는 이번 범위가 아니라 그대로 둔다.
+//   3. catch 에서는 return toErrorResponse(e, "[POST /api/admin/...]");
 
-export {};
+// spec 5.1 오류 표
+const STATUS_BY_CODE = {
+  INVALID_BODY: 400,
+  INVALID_PARTICIPANT_NO: 400,
+  INVALID_WINNER_COUNT: 400,
+  INVALID_WINNER_SELECTION: 400,
+  UNAUTHORIZED: 401,
+  WRONG_PASSWORD: 401,
+  INVALID_TOKEN: 404,
+  DRAW_NOT_FOUND: 404,
+  NOT_ENOUGH_CANDIDATES: 409,
+  DRAW_PENDING_EXISTS: 409,
+  DRAW_NOT_PENDING: 409,
+  PRIZE_ALREADY_DRAWN: 409,
+  DB_ERROR: 500,
+} as const;
+
+export type ApiErrorCode = keyof typeof STATUS_BY_CODE;
+
+function isApiErrorCode(value: string): value is ApiErrorCode {
+  return Object.hasOwn(STATUS_BY_CODE, value);
+}
+
+export function apiError(code: ApiErrorCode): NextResponse {
+  return NextResponse.json({ error: code }, { status: STATUS_BY_CODE[code] });
+}
+
+// 규칙 함수가 일부러 던진 코드는 그 코드로 응답한다.
+// 그 밖의 오류(DB 실패, 예상하지 못한 버그)는 로그에만 자세히 남기고 DB_ERROR 로만 응답한다.
+// 브라우저에 DB 구조나 내부 메시지가 보이지 않게 하려는 것이다.
+export function toErrorResponse(e: unknown, logLabel: string): NextResponse {
+  if (e instanceof Error && isApiErrorCode(e.message)) return apiError(e.message);
+  console.error(logLabel, e);
+  return apiError("DB_ERROR");
+}

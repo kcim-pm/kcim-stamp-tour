@@ -1,33 +1,78 @@
-// 참가자 목록 표 (클라이언트). spec 3.3 「참가자 목록」, A-05, A-08, A-20
-//
-// 의사 코드 (작업 8). 아직 구현 전이다.
-//
-// 【이 컴포넌트가 하는 일】
-//   참가자 목록을 표로 보여 주기만 한다. 스스로 데이터를 불러오거나 기억하지 않는다.
-//   지급 체크와 삭제 버튼을 누르면, 부모(admin-console)에게서 받은 함수를 부르기만 한다.
-//
-// 【받는 것】
-//   - 참가자 목록
-//   - 구역 목록 (열 순서)
-//   - 지급 체크를 눌렀을 때 부를 함수, 삭제를 눌렀을 때 부를 함수
-//
-// 【화면】
-//   목록이 비었으면 「참가자가 없습니다」를 보여 준다.
-//   (필터가 켜져 있으면 「선물을 받지 않은 완주자가 없습니다」)
-//
-//   표의 열: 번호 | 구역들 | 완주 | 당첨 경품 | 지급 | 삭제
-//   참가자마다 한 줄:
-//     - 번호: 「#7」처럼 앞자리 0 없이
-//     - 구역 칸: 인증했으면 ✓, 안 했으면 ·. 마우스를 올리면 인증 시각(시:분)
-//     - 완주: 완주했으면 「완주」 배지
-//     - 당첨 경품: 없으면 빈칸. 있으면 경품마다 한 줄
-//     - 지급: 당첨 경품마다 체크박스 하나 (당첨 경품과 같은 줄에 맞춘다)
-//         지급 시각이 있으면 체크된 상태로, 옆에 지급 시각(시:분)
-//         누르고 응답이 올 때까지 그 체크박스만 막는다. 두 번 눌러 요청이 두 번 가는 것을 막기 위해서다.
-//     - 삭제: [삭제] 버튼
-//
-// 【이렇게 정한 이유】
-//   한 사람이 경품 여러 개에 당첨될 수 있어서(이전 당첨자 제외를 끈 경우) 당첨·지급 칸은 목록으로 그린다.
-//   시각은 브라우저 시간대를 그대로 쓴다. 운영자 노트북은 한국 시간이라 따로 바꾸지 않는다.
+"use client";
 
-export {};
+// 참가자 목록 표 (클라이언트). spec 3.3 「참가자 목록」, A-05, A-08
+// 보여 주기만 한다. 삭제는 부모(admin-console)에게서 받은 함수를 부른다.
+// 한 사람이 경품 여러 개에 당첨될 수 있어서(이전 당첨자 제외를 끈 경우) 당첨 경품 칸은 목록으로 그린다.
+// 시각은 브라우저 시간대를 그대로 쓴다. 운영자 노트북은 한국 시간이다.
+import type { ParticipantItem, ZoneColumn } from "./admin-console";
+
+const hhmm = (iso: string) =>
+  new Date(iso).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false });
+
+export function ParticipantTable({
+  participants,
+  zones,
+  onDelete,
+}: {
+  participants: ParticipantItem[];
+  zones: ZoneColumn[];
+  onDelete: (participantNo: number) => void;
+}) {
+  if (participants.length === 0) {
+    return <div className="empty">참가자가 없습니다</div>;
+  }
+
+  return (
+    <div className="table-wrap">
+      <table className="admin-table">
+        <thead>
+          <tr>
+            <th className="num">번호</th>
+            {zones.map((z) => (
+              <th key={z.code} className="num">
+                {z.name}
+              </th>
+            ))}
+            <th className="num">완주</th>
+            <th>당첨 경품</th>
+            <th className="num">삭제</th>
+          </tr>
+        </thead>
+        <tbody>
+          {participants.map((p) => (
+            <tr key={p.participantNo}>
+              <td className="num">#{p.participantNo}</td>
+              {zones.map((z) => {
+                const at = p.visits[z.code];
+                return (
+                  <td key={z.code} className="num">
+                    {at ? (
+                      <span className="zone-ok" title={hhmm(at)}>
+                        ✓
+                      </span>
+                    ) : (
+                      <span className="zone-no">·</span>
+                    )}
+                  </td>
+                );
+              })}
+              <td className="num">{p.completed && <span className="badge">완주</span>}</td>
+              <td>
+                {p.wins.map((w) => (
+                  <div key={w.drawId} className="win-line">
+                    {w.prizeName}
+                  </div>
+                ))}
+              </td>
+              <td className="num">
+                <button className="btn-ghost btn-danger" style={{ height: 30 }} onClick={() => onDelete(p.participantNo)}>
+                  삭제
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}

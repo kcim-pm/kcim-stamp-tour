@@ -1,24 +1,42 @@
-// 오른쪽 「당첨 현황」 패널 (클라이언트). spec 3.4 우측 패널, A-26
-//
-// 의사 코드 (작업 9). 아직 구현 전이다.
-//
-// 【이 컴포넌트가 하는 일】
-//   지금까지 확정된 당첨 번호를 경품 등급별로 모아 보여 주고, 전체 진행률을 보여 준다.
-//   확정 전 임시 결과는 아직 발표가 끝난 것이 아니므로 여기에 올리지 않는다.
-//
-// 【받는 것】 경품 목록, 회차 목록
-//
-// 【전체 진행률】 패널 맨 위
-//   1. 전체 경품 인원: 모든 경품의 당첨 인원을 더한다.
-//   2. 확정 인원: 확정된 회차들의 확정 당첨자 수를 더한다.
-//   3. 「확정 인원 / 전체 경품 인원 명」과 진행 막대를 보여 준다. 경품이 하나도 없으면 「경품이 없습니다」.
-//   후보가 모자라 적게 뽑힌 경품이 있으면, 모든 추첨이 끝나도 100% 가 되지 않는다. 사실 그대로이므로 그대로 둔다.
-//
-// 【등급별 목록】 추첨 순서(경품 순서)대로
-//   - 확정된 경품: 「N등 경품 이름」 제목 아래에 당첨 번호를 작은 칩으로 나열한다 (번호 오름차순).
-//   - 아직 추첨하지 않은 경품: 제목만 흐리게 보여 준다.
-//
-// 【화면】
-//   번호가 많아 패널을 넘치면 패널 안에서만 위아래로 스크롤한다. 발표 화면 전체가 스크롤되면 안 된다.
+"use client";
 
-export {};
+// 오른쪽 「당첨 현황」 패널 (클라이언트). spec 3.4 우측 패널, A-26
+// 확정된 당첨 번호만 경품별로, 경품 순서대로 모아 보여 준다. 임시 결과는 발표가 끝난 것이 아니므로 올리지 않는다.
+// 전체 진행률(확정 인원 / 전체 경품 인원)은 표시하지 않는다 (10/15 결정).
+// 번호가 많아 넘치면 패널 안에서만 스크롤한다 (.winners-panel).
+import type { DrawResponse, PrizeResponse } from "@/lib/admin-query";
+
+export function WinnersPanel({ prizes, draws }: { prizes: PrizeResponse[]; draws: DrawResponse[] }) {
+  const confirmedNosByPrize = new Map<number, number[]>();
+  for (const d of draws) {
+    if (d.status !== "confirmed") continue;
+    const nos = d.winners.filter((w) => w.status === "confirmed").map((w) => w.participantNo);
+    confirmedNosByPrize.set(d.prize.id, [...(confirmedNosByPrize.get(d.prize.id) ?? []), ...nos]);
+  }
+
+  return (
+    <aside className="winners-panel">
+      <h2>당첨 현황</h2>
+      {prizes.length === 0 && <p className="hint">경품이 없습니다</p>}
+      {prizes.map((p) => {
+        const nos = confirmedNosByPrize.get(p.id);
+        return (
+          <section key={p.id} className={`panel-prize${nos ? "" : " is-waiting"}`}>
+            <h3>{p.name}</h3>
+            {nos && (
+              <div className="chips">
+                {[...nos]
+                  .sort((a, b) => a - b)
+                  .map((no) => (
+                    <span key={no} className="chip">
+                      {no}
+                    </span>
+                  ))}
+              </div>
+            )}
+          </section>
+        );
+      })}
+    </aside>
+  );
+}

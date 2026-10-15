@@ -1,7 +1,8 @@
 import "server-only";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { NextResponse } from "next/server";
+import type { NextResponse } from "next/server";
+import { apiError } from "./api-error";
 import { SESSION_COOKIE, verifySessionToken } from "./auth";
 
 // lib/admin-session.ts — 쿠키를 읽어 관리자 세션을 확인 (서버 전용, 테스트 대상 아님)
@@ -38,5 +39,5 @@ export async function requireAdminPage(currentPath: string): Promise<void> {
 // Route Handler 는 `const denied = await requireAdminApi(); if (denied) return denied;` 로 쓴다.
 export async function requireAdminApi(): Promise<NextResponse | null> {
   if (await isAdminLoggedIn()) return null;
-  return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  return apiError("UNAUTHORIZED");
 }

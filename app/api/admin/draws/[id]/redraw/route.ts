@@ -1,36 +1,72 @@
-// POST /api/admin/draws/{회차번호}/redraw — 부재자 재추첨 (spec 5.3, A-24, D-18)
-//
-// 의사 코드 (작업 7). 아직 구현 전이다.
-//
-// 【이 API 가 하는 일】
-//   임시 결과에서 현장에 없는 번호들을 고르고 [선택 번호 재추첨]을 누르면 부른다.
-//   고른 번호는 「부재자」로 바꾸고, 고른 수만큼 새로 뽑아 그 자리를 채운다. 나머지 번호는 그대로 둔다.
-//
-// 【처리 순서】
-//   1. 로그인했는지 확인한다.
-//   2. 주소의 회차 번호와, 본문의 「고른 번호 목록」을 읽는다. 모양이 틀리면 400 INVALID_BODY.
-//   3. 회차를 전부 읽고, 이 회차를 찾는다. 없으면 404 DRAW_NOT_FOUND.
-//   4. 이 회차가 아직 임시 상태인지 확인한다 (assertPending). 이미 확정했으면 409 DRAW_NOT_PENDING.
-//   5. 고른 번호가 모두 이 회차의 임시 당첨자인지 확인한다 (assertRedrawSelection).
-//      아니면(이미 부재자, 다른 회차 번호, 중복) 400 INVALID_WINNER_SELECTION.
-//   6. 다시 뽑을 후보를 구한다.
-//      - 이 회차를 처음 뽑을 때와 같은 기준으로 추첨 후보를 구한다 (기능 5, 이 회차의 「이전 당첨자 제외」 값 사용)
-//      - 거기서 이 회차에 이미 기록된 번호를 모두 뺀다 (pickRedrawCandidates)
-//        남아 있는 당첨자와 부재자가 같은 회차에서 다시 뽑히면 안 되기 때문이다.
-//   7. 고른 수만큼 새로 뽑는다 (drawWinners). 후보가 0명이면 409 NOT_ENOUGH_CANDIDATES 이고, DB 는 하나도 바뀌지 않는다.
-//   8. 저장한다. 순서가 중요하다.
-//      ① 새로 뽑힌 번호를 이 회차의 임시 당첨자로 추가한다.
-//      ② 고른 번호들을 부재자로 바꾼다.
-//      ②가 실패하면 ①에서 추가한 번호를 지우고 오류를 낸다.
-//   9. 이 회차를 다시 읽어 돌려준다.
-//
-// 【8단계 순서를 이렇게 정한 이유】
-//   ②가 실패했을 때 ①만 지우면 재추첨 전 상태로 정확히 돌아간다. 운영자는 같은 번호를 골라 다시 누르면 된다.
-//   반대 순서(부재자로 먼저 바꿈)에서 추가가 실패하면, 부재자 표시를 되돌리는 저장이 또 필요하다.
-//   그것까지 실패하면 고를 번호가 없어서 화면에서 복구할 방법이 없다.
-//
-// 【알고 둘 것】
-//   - 후보가 고른 수보다 적으면 있는 만큼만 새로 뽑힌다. 그러면 당첨자가 경품 인원보다 적어진다.
-//   - 되돌리기마저 실패하는 경우는 여전히 남는다. 완전히 묶으려면 DB 함수(rpc)가 필요하다. 행사 규모에서는 드물어 생략한다.
+import { randomInt } from "node:crypto";
+import { NextResponse, type NextRequest } from "next/server";
+import { requireAdminApi } from "@/lib/admin-session";
+import { apiError, toErrorResponse } from "@/lib/api-error";
+import { loadCandidates, loadDraw, loadDraws, toDrawResponse, toDrawRow, toWinnerRows } from "@/lib/admin-query";
+import { drawWinners, pickRedrawCandidates } from "@/lib/draw";
+import { assertPending, assertRedrawSelection } from "@/lib/draw-state";
+import { getSupabase } from "@/lib/supabase-server";
+import { DbError } from "@/lib/status-query";
 
-export {};
+// POST /api/admin/draws/{회차번호}/redraw — 부재자 재추첨 (spec 5.3, A-24, D-18)
+// 고른 번호를 부재자로 바꾸고 그 수만큼 새로 뽑는다. 나머지 번호는 그대로다.
+// 후보가 고른 수보다 적으면 있는 만큼만 새로 뽑힌다.
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminApi();
+  if (denied) return denied;
+
+  const drawId = Number((await params).id);
+  let body: { participantNos?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return apiError("INVALID_BODY");
+  }
+  const selected = body?.participantNos;
+  if (!Number.isInteger(drawId) || drawId < 1 || !Array.isArray(selected) || !selected.every(Number.isInteger)) {
+    return apiError("INVALID_BODY");
+  }
+
+  const supabase = getSupabase();
+  try {
+    const draws = await loadDraws();
+    const draw = draws.find((d) => d.id === drawId);
+    if (!draw) return apiError("DRAW_NOT_FOUND");
+
+    assertPending(toDrawRow(draw));
+    assertRedrawSelection(toWinnerRows(draw), selected as number[]);
+
+    // 이 회차를 처음 뽑을 때와 같은 기준의 후보에서, 이 회차에 기록된 번호(남은 당첨자, 부재자)를 모두 뺀다.
+    const candidates = await loadCandidates(draws, draw.exclude_previous);
+    const redrawCandidates = pickRedrawCandidates(
+      candidates,
+      draw.winners.map((w) => w.participant_no),
+    );
+    // 후보가 0명이면 여기서 던지고 DB 는 바뀌지 않는다.
+    const picked = drawWinners(redrawCandidates, selected.length, randomInt);
+
+    // 순서: ① 새 번호 추가 → ② 고른 번호를 부재자로. ②가 실패하면 ①만 지우면 재추첨 전 상태로 돌아간다.
+    // 되돌리기마저 실패하는 경우는 남는다. 완전히 묶으려면 DB 함수(rpc)가 필요하지만 행사 규모에서는 생략한다.
+    const { error: insertError } = await supabase
+      .from("draw_winners")
+      .insert(picked.map((no) => ({ draw_id: drawId, participant_no: no, status: "pending" })));
+    if (insertError) throw new DbError(insertError.message);
+
+    const { error: absentError } = await supabase
+      .from("draw_winners")
+      .update({ status: "absent" })
+      .eq("draw_id", drawId)
+      .eq("status", "pending")
+      .in("participant_no", selected as number[]);
+    if (absentError) {
+      await supabase.from("draw_winners").delete().eq("draw_id", drawId).in("participant_no", picked);
+      throw new DbError(absentError.message);
+    }
+
+    const saved = await loadDraw(drawId);
+    if (!saved) throw new DbError(`회차 ${drawId} 를 다시 읽지 못했다`);
+    return NextResponse.json(toDrawResponse(saved));
+  } catch (e) {
+    return toErrorResponse(e, "[POST /api/admin/draws/redraw]");
+  }
+}

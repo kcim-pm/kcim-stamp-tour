@@ -1,23 +1,30 @@
-// DELETE /api/admin/participants/{참가번호} — 참가자 삭제 (spec 5.3, A-08)
-//
-// 의사 코드 (작업 7). 아직 구현 전이다.
-//
-// 【이 API 가 하는 일】
-//   콘솔 참가자 목록의 [삭제] 버튼이 부른다. 참가자와 그 사람의 방문 기록, 당첨 기록을 모두 지운다.
-//
-// 【처리 순서】
-//   1. 로그인했는지 확인한다. 안 했으면 401 로 끝낸다.
-//   2. 주소의 참가번호를 정규화한다 (normalizeParticipantNo).
-//      "007" 로 지워도 7번이 지워진다. 1~999 가 아니면 400 INVALID_PARTICIPANT_NO 로 끝낸다.
-//   3. 참가자 표에서 그 번호를 지운다.
-//      방문 기록과 당첨 기록은 DB 가 함께 지운다(on delete cascade, spec 4장). 따로 지우지 않는다.
-//   4. 204(본문 없음)로 돌려준다.
-//
-// 【이렇게 정한 이유】
-//   - 없는 번호를 지워도 204 다. 두 운영자가 같은 번호를 동시에 지워도 결과는 「지워진 상태」로 같으므로 오류로 보지 않는다.
-//
-// 【알고 둘 것】
-//   확정 당첨자를 지우면 그 회차의 당첨자도 한 명 줄어든다. 이것을 막는 규칙은 명세에 없다.
-//   대신 콘솔의 삭제 확인 창에 「당첨 기록도 함께 지워집니다」를 보여 준다 (작업 8).
+import { NextResponse } from "next/server";
+import { requireAdminApi } from "@/lib/admin-session";
+import { apiError, toErrorResponse } from "@/lib/api-error";
+import { normalizeParticipantNo } from "@/lib/participant-no";
+import { getSupabase } from "@/lib/supabase-server";
+import { DbError } from "@/lib/status-query";
 
-export {};
+// DELETE /api/admin/participants/{참가번호} — 참가자 삭제 (spec 5.3, A-08)
+// 방문 기록과 당첨 기록은 DB 가 함께 지운다 (on delete cascade, spec 4장).
+// 없는 번호를 지워도 204 다. 두 운영자가 같은 번호를 동시에 지워도 결과는 「지워진 상태」로 같다.
+// 확정 당첨자를 지우면 그 회차의 당첨자도 한 명 줄어든다. 콘솔의 확인 창에서 미리 알린다.
+export async function DELETE(_request: Request, { params }: { params: Promise<{ no: string }> }) {
+  const denied = await requireAdminApi();
+  if (denied) return denied;
+
+  let participantNo: number;
+  try {
+    participantNo = normalizeParticipantNo((await params).no);
+  } catch {
+    return apiError("INVALID_PARTICIPANT_NO");
+  }
+
+  try {
+    const { error } = await getSupabase().from("participants").delete().eq("participant_no", participantNo);
+    if (error) throw new DbError(error.message);
+    return new NextResponse(null, { status: 204 });
+  } catch (e) {
+    return toErrorResponse(e, "[DELETE /api/admin/participants]");
+  }
+}

@@ -1,27 +1,53 @@
-// POST /api/admin/draws/{회차번호}/confirm — 당첨 확정 (spec 5.3, A-25)
-//
-// 의사 코드 (작업 7). 아직 구현 전이다.
-//
-// 【이 API 가 하는 일】
-//   발표 화면의 [✓ 당첨 확정]이 부른다. 임시 결과를 확정 결과로 바꾼다.
-//   확정해야 선물 지급과 [다음 경품 →]이 가능해진다.
-//
-// 【처리 순서】
-//   1. 로그인했는지 확인한다.
-//   2. 주소의 회차 번호를 읽는다. 1 이상의 정수가 아니면 400 INVALID_BODY.
-//   3. 회차를 읽는다. 없으면 404 DRAW_NOT_FOUND.
-//   4. 이 회차가 아직 임시 상태인지 확인한다 (assertPending). 이미 확정했으면 409 DRAW_NOT_PENDING.
-//   5. 저장한다. 순서가 중요하다.
-//      ① 이 회차의 임시 당첨자를 모두 확정 당첨자로 바꾼다. 부재자는 그대로 둔다.
-//         (lib/draw-state.ts 의 confirmedWinners 와 같은 규칙. 여기서는 한 번의 저장으로 처리한다)
-//      ② 회차를 확정 상태로 바꾸고 확정 시각을 적는다. 단, 「아직 임시 상태일 때만」 바꾼다.
-//         바뀐 회차가 없으면, 다른 창에서 먼저 확정한 것이다 → 409 DRAW_NOT_PENDING.
-//   6. 이 회차를 다시 읽어 돌려준다.
-//
-// 【5단계 순서를 이렇게 정한 이유】
-//   ①과 ② 사이에서 오류가 나도, 운영자가 [당첨 확정]을 한 번 더 누르면 끝난다.
-//     회차는 아직 임시라 4단계를 통과하고, ①은 바꿀 것이 없어 그냥 지나가고, ②가 마저 확정한다.
-//   반대 순서면 「확정된 회차에 임시 당첨자가 남은」 상태가 생기고, 확정된 회차는 다시 확정할 수 없어 DB 를 손으로 고쳐야 한다.
-//   두 창에서 동시에 눌러도 ①은 결과가 같고, ②의 조건 덕분에 한쪽만 성공한다.
+import { NextResponse } from "next/server";
+import { requireAdminApi } from "@/lib/admin-session";
+import { apiError, toErrorResponse } from "@/lib/api-error";
+import { loadDraw, toDrawResponse, toDrawRow } from "@/lib/admin-query";
+import { assertPending } from "@/lib/draw-state";
+import { getSupabase } from "@/lib/supabase-server";
+import { DbError } from "@/lib/status-query";
 
-export {};
+// POST /api/admin/draws/{회차번호}/confirm — 당첨 확정 (spec 5.3, A-25)
+// 확정해야 [다음 경품 →]이 가능해진다.
+//
+// 저장 순서: ① 임시 당첨자 → 확정 ② 회차 → 확정 (임시 상태일 때만)
+//   ①과 ② 사이에서 오류가 나도 [당첨 확정]을 한 번 더 누르면 끝난다(①은 바꿀 것이 없고 ②가 마저 확정).
+//   반대 순서면 「확정된 회차에 임시 당첨자가 남은」 상태가 생기고, 다시 확정할 수 없어 DB 를 손으로 고쳐야 한다.
+//   두 창에서 동시에 눌러도 ①은 결과가 같고, ②의 조건 덕분에 한쪽만 성공한다.
+export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdminApi();
+  if (denied) return denied;
+
+  const drawId = Number((await params).id);
+  if (!Number.isInteger(drawId) || drawId < 1) return apiError("INVALID_BODY");
+
+  const supabase = getSupabase();
+  try {
+    const draw = await loadDraw(drawId);
+    if (!draw) return apiError("DRAW_NOT_FOUND");
+    assertPending(toDrawRow(draw));
+
+    // lib/draw-state.ts confirmedWinners 와 같은 규칙: pending → confirmed, absent 는 그대로. 한 번의 저장으로 처리한다.
+    const { error: winnersError } = await supabase
+      .from("draw_winners")
+      .update({ status: "confirmed" })
+      .eq("draw_id", drawId)
+      .eq("status", "pending");
+    if (winnersError) throw new DbError(winnersError.message);
+
+    const { data: updated, error: drawError } = await supabase
+      .from("draws")
+      .update({ status: "confirmed", confirmed_at: new Date().toISOString() })
+      .eq("id", drawId)
+      .eq("status", "pending")
+      .select("id");
+    if (drawError) throw new DbError(drawError.message);
+    // 다른 창에서 먼저 확정했다
+    if (updated.length === 0) return apiError("DRAW_NOT_PENDING");
+
+    const saved = await loadDraw(drawId);
+    if (!saved) throw new DbError(`회차 ${drawId} 를 다시 읽지 못했다`);
+    return NextResponse.json(toDrawResponse(saved));
+  } catch (e) {
+    return toErrorResponse(e, "[POST /api/admin/draws/confirm]");
+  }
+}
