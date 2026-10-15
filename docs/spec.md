@@ -253,7 +253,7 @@ alter table draw_winners enable row level security;
 |---|---|---|
 | 400 | `INVALID_PARTICIPANT_NO` | 참가번호가 비었거나 1~999 정수가 아니다 |
 | 400 | `INVALID_WINNER_COUNT` | 당첨 인원이 양의 정수가 아니다 |
-| 400 | `INVALID_WINNER_SELECTION` | 재추첨 대상 번호가 이 회차의 임시 당첨자가 아니다 |
+| 400 | `INVALID_WINNER_SELECTION` | 재추첨 대상 번호가 이 회차의 임시 당첨자가 아니거나, 지급 대상 번호가 이 회차의 확정 당첨자가 아니다(부재자 등) |
 | 401 | `UNAUTHORIZED` | 관리자 세션 쿠키가 없거나 만료되었거나 위조되었다 |
 | 401 | `WRONG_PASSWORD` | 관리자 비밀번호가 틀리다 |
 | 404 | `INVALID_TOKEN` | 토큰에 맞는 구역이 없다 |
@@ -365,7 +365,7 @@ alter table draw_winners enable row level security;
 
 요청: `{ "drawId": 1, "participantNo": 7, "given": true }`
 응답(200): `{ "drawId": 1, "participantNo": 7, "giftGivenAt": "2026-10-27T17:10:00Z" }`
-회차가 확정되지 않았으면 409 `DRAW_NOT_CONFIRMED`다. `given: true`인데 이미 지급되었으면 409 `ALREADY_GIVEN`이다. `given: false`는 지급 시각을 지운다.
+회차가 확정되지 않았으면 409 `DRAW_NOT_CONFIRMED`, 그 번호가 이 회차의 `confirmed` 당첨자가 아니면(부재자, 없는 번호) 400 `INVALID_WINNER_SELECTION`이다. `given: true`인데 이미 지급되었으면 409 `ALREADY_GIVEN`이다. `given: false`는 지급 시각을 지운다.
 
 **`GET /api/admin/export`** 전체 참가자 현황을 CSV로 돌려준다. `Content-Type: text/csv; charset=utf-8`, 본문 앞에 BOM을 붙인다. 구역 열은 인증 시각이고 미방문이면 비운다. 완주 열은 완주자만 `Y`, 아니면 빈칸이다. 당첨 경품은 확정된 것만, 여러 개면 세미콜론으로 잇고 지급 시각도 같은 순서로 세미콜론으로 잇는다(D-17). 시각은 모두 한국 시간 `YYYY-MM-DD HH:mm:ss`다. 줄 끝은 CRLF다.
 
@@ -600,6 +600,7 @@ Route Handler와 화면은 단위 테스트 대상이 아니다. 8.2의 수동 �
 | 2026-10-14 | 참가자 화면 디자인 확정(디자인 캔버스 「E 최종」): 3.2 카드 문구를 짧게 고치고 현재 위치 카드 가운데 정렬, 구역 목록을 S자 경로 위 입체 스탬프로, 완주 카드를 입체로. 7.6에 `app/globals.css`, `components/`, `lib/status.ts`, `lib/status-query.ts` 추가 |
 | 2026-10-14 | D-07 수정 반영: [다른 번호로 조회] 버튼 삭제(3.2 카드 6, 동작 규칙, 8.2). 「추첨 응모 완료」 배지를 경로 아래 가운데로 |
 | 2026-10-15 | 로그인 페이지를 `/admin/login`으로 분리: 3.1 행 추가, 3.3·3.4·3.5 이동 규칙 수정, 3.6 신설(보호 대상, `next` 경로 규칙, 창 두 개). 7.5 절차 8 수정. 7.6에 `admin/login/page.tsx`, `admin/login/_components/`, `lib/admin-session.ts` 추가, `components/`는 공용 컴포넌트만(`print-button.tsx`를 `qr/_components/`로 이동) |
+| 2026-10-15 | 5.3 winners: 지급 대상이 이 회차의 `confirmed` 당첨자가 아니면(부재자) 400 `INVALID_WINNER_SELECTION`. 확정 회차에 남은 `absent` 행이 지급 처리되는 구멍을 막음 |
 | 2026-10-15 | 5.3 export: 완주 열 `Y`/빈칸, 시각은 한국 시간 `YYYY-MM-DD HH:mm:ss`, 지급 시각도 세미콜론 연결, 줄 끝 CRLF |
 | 2026-10-15 | 추첨 규칙 2건 변경: ① 후보가 당첨 인원보다 적으면 거부하지 않고 후보 수만큼 뽑는다(0명일 때만 409 `NOT_ENOUGH_CANDIDATES`) ② 확정된 회차가 있는 경품으로 다시 추첨하면 409 `PRIZE_ALREADY_DRAWN`. 5.1 오류 표, 5.3 draws, 6장, 8.1, 8.2 수정 |
 | 2026-10-15 | 3.6 `next` 경로 규칙에 역슬래시 차단 추가. 로컬에서 `next=/%5Cevil.com`이 외부로 이동하는 것을 재현해 확인. 5.3 `Secure`는 운영 빌드에서만. 7.6에 `admin/_components/logout-button.tsx` 추가 |

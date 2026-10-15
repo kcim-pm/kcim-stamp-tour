@@ -2,45 +2,59 @@
 //
 // DB 를 읽지 않는다. 구역 목록과 참가자 행을 인자로 받아 문자열 하나를 돌려준다.
 // Route Handler(GET /api/admin/export)가 이 문자열을 text/csv 로 내려보낸다.
+// 형식은 spec 5.3 export, D-17.
 
-// ── 입력 ──────────────────────────────────────────────
-// zones: [{ name }]  sort 순서대로. 열 제목이 된다
-// rows:  [{
-//   participantNo: number,
-//   visitedAt:     (string | null)[]   zones 와 같은 길이. 미방문은 null
-//   completed:     boolean,
-//   prizes:        string[]            확정(confirmed)된 당첨 경품 이름만. 없으면 []
-//   giftGivenAt:   (string | null)[]   prizes 와 같은 길이. 미지급은 null
-// }]
+// 엑셀이 UTF-8 로 읽어 한글이 깨지지 않게 맨 앞에 붙인다.
+// 이스케이프로 쓴다. 글자 그대로 넣으면 보이지 않아 에디터가 지워도 모른다.
+const BOM = "﻿";
+// 엑셀 기준 줄 끝. 마지막 줄 뒤에도 붙인다.
+const CRLF = "\r\n";
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
-// ── 출력 (spec 5.3 export, D-17) ──────────────────────
-// 1. 맨 앞에 BOM("﻿"). 엑셀이 UTF-8 로 읽어 한글이 깨지지 않게
-// 2. 첫 줄: 참가번호,<구역 이름들…>,완주,당첨 경품,지급 시각
-// 3. 참가자 한 명당 한 줄
-//    - 참가번호: 앞자리 0 없이 (7)
-//    - 구역 열: 인증 시각. 미방문이면 빈칸
-//    - 완주: 완주자는 "Y", 아니면 빈칸 (10/15 결정)
-//    - 당첨 경품: 이름을 세미콜론(;)으로 잇는다. 없으면 빈칸
-//    - 지급 시각: 경품과 같은 순서로 세미콜론으로 잇는다. 미지급은 그 자리를 비운다
-// 4. 줄 끝은 CRLF("\r\n"). 엑셀 기준. 마지막 줄 뒤에도 하나
-// 5. 행이 없으면 BOM + 첫 줄만
+export type CsvZone = { name: string };
 
-// ── 함수 1: 칸 하나 다듬기 ────────────────────────────
-// escapeField(value) → string
-//   값에 쉼표, 큰따옴표, 줄바꿈이 있으면 전체를 큰따옴표로 감싸고 안의 큰따옴표는 두 개로.
-//   구역 이름(D-15 확정 대기)이나 경품 이름에 쉼표가 들어와도 열이 밀리지 않게.
-//   null 은 빈 문자열.
+export type CsvRow = {
+  participantNo: number;
+  visitedAt: (string | null)[]; // zones 와 같은 길이. 미방문은 null
+  completed: boolean;
+  prizes: string[]; // 확정(confirmed)된 당첨 경품 이름만
+  giftGivenAt: (string | null)[]; // prizes 와 같은 길이. 미지급은 null
+};
 
-// ── 함수 2: 시각 표기 ─────────────────────────────────
-// formatTime(iso) → string
-//   DB 는 UTC ISO 문자열("2026-10-27T08:05:00+00:00")을 준다.
-//   한국 시간 "2026-10-27 17:05:00" 으로 바꾼다 (10/15 결정). 운영자가 엑셀로 보는 용도.
-//   변환은 toLocaleString 대신 「Date.parse 한 밀리초 + 9시간」을 UTC 필드(getUTCFullYear 등)로
-//   읽어 직접 조립한다. 그래야 Netlify 서버의 시간대 설정에 영향받지 않는다.
-//   null 은 빈 문자열.
+// 쉼표, 큰따옴표, 줄바꿈이 있으면 전체를 큰따옴표로 감싸고 안의 큰따옴표는 두 개로.
+// 구역 이름(D-15 확정 대기)이나 경품 이름에 쉼표가 들어와도 열이 밀리지 않게.
+export function escapeField(value: string | null): string {
+  if (value === null) return "";
+  if (!/[",\r\n]/.test(value)) return value;
+  return `"${value.replace(/"/g, '""')}"`;
+}
 
-// ── 함수 3: 전체 조립 ─────────────────────────────────
-// buildCsv(zones, rows) → string
-//   1. 헤더 = ["참가번호", ...zones.map(name), "완주", "당첨 경품", "지급 시각"]
-//   2. rows 마다 칸 배열을 만들고 escapeField 를 거쳐 쉼표로 잇는다
-//   3. BOM + 줄들을 CRLF 로 잇기
+const pad = (n: number) => String(n).padStart(2, "0");
+
+// DB 의 UTC ISO 문자열을 한국 시간 "YYYY-MM-DD HH:mm:ss" 로 바꾼다 (10/15 결정).
+// toLocaleString 대신 +9시간 한 값을 UTC 필드로 읽어 조립한다. Netlify 서버의 시간대 설정에 영향받지 않는다.
+export function formatTime(iso: string | null): string {
+  if (iso === null) return "";
+  const d = new Date(Date.parse(iso) + KST_OFFSET_MS);
+  return (
+    `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ` +
+    `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`
+  );
+}
+
+// visitedAt 의 길이·순서가 zones 와 같은지는 검사하지 않는다. 호출자(GET /api/admin/export)가
+// 구역 sort 순서대로 채워야 열이 밀리지 않는다.
+export function buildCsv(zones: CsvZone[], rows: CsvRow[]): string {
+  const header = ["참가번호", ...zones.map((z) => z.name), "완주", "당첨 경품", "지급 시각"];
+
+  const body = rows.map((r) => [
+    String(r.participantNo),
+    ...r.visitedAt.map(formatTime),
+    r.completed ? "Y" : "",
+    r.prizes.join(";"),
+    r.giftGivenAt.map(formatTime).join(";"),
+  ]);
+
+  const lines = [header, ...body].map((cells) => cells.map(escapeField).join(","));
+  return BOM + lines.map((line) => line + CRLF).join("");
+}
