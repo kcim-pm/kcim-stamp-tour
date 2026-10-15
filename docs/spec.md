@@ -257,11 +257,11 @@ alter table draw_winners enable row level security;
 | 401 | `UNAUTHORIZED` | 관리자 세션 쿠키가 없거나 만료되었거나 위조되었다 |
 | 401 | `WRONG_PASSWORD` | 관리자 비밀번호가 틀리다 |
 | 404 | `INVALID_TOKEN` | 토큰에 맞는 구역이 없다 |
-| 409 | `NOT_ENOUGH_CANDIDATES` | 당첨 인원이 후보 수보다 많다 |
+| 409 | `NOT_ENOUGH_CANDIDATES` | 후보가 0명이라 뽑을 수 없다. 후보가 당첨 인원보다 적기만 하면 거부하지 않고 후보 수만큼 뽑는다 |
 | 409 | `DRAW_PENDING_EXISTS` | 확정하지 않은 회차가 있어 새 추첨을 시작할 수 없다 |
 | 409 | `DRAW_NOT_PENDING` | 이미 확정된 회차를 재추첨하거나 다시 확정하려 한다 |
 | 409 | `DRAW_NOT_CONFIRMED` | 확정되지 않은 회차의 당첨자를 지급 처리하려 한다 |
-| 409 | `PRIZE_ALREADY_DRAWN` | 이미 추첨한 경품을 바꾸려 한다 |
+| 409 | `PRIZE_ALREADY_DRAWN` | 이미 추첨해 확정한 경품을 바꾸거나, 그 경품으로 다시 추첨하려 한다 |
 | 409 | `ALREADY_GIVEN` | 이미 지급 처리된 당첨자다 |
 
 ### 5.2 참가자 API (공개)
@@ -348,10 +348,10 @@ alter table draw_winners enable row level security;
 }
 ```
 
-**`POST /api/admin/draws`** 추첨을 실행하고 임시 결과를 저장한다. 확정하지 않은 회차가 남아 있으면 409 `DRAW_PENDING_EXISTS`다.
+**`POST /api/admin/draws`** 추첨을 실행하고 임시 결과를 저장한다. 확정하지 않은 회차가 남아 있으면 409 `DRAW_PENDING_EXISTS`, 그 경품에 이미 확정된 회차가 있으면 409 `PRIZE_ALREADY_DRAWN`이다.
 
 요청: `{ "prizeId": 1, "winnerCount": 10, "excludePrevious": true }` (`winnerCount`를 생략하면 경품 목록의 인원을 쓴다)
-응답(201): 위 `draws` 배열의 원소 하나와 같은 형식이다. `status`는 `pending`이다.
+응답(201): 위 `draws` 배열의 원소 하나와 같은 형식이다. `status`는 `pending`이다. 후보가 `winnerCount`보다 적으면 후보 수만큼만 뽑히고 `winnerCount`에는 요청한 인원이 남는다. 후보가 0명이면 409 `NOT_ENOUGH_CANDIDATES`다.
 
 **`POST /api/admin/draws/{id}/redraw`** 선택한 번호를 부재자로 바꾸고 그 수만큼 다시 뽑는다.
 
@@ -367,7 +367,7 @@ alter table draw_winners enable row level security;
 응답(200): `{ "drawId": 1, "participantNo": 7, "giftGivenAt": "2026-10-27T17:10:00Z" }`
 회차가 확정되지 않았으면 409 `DRAW_NOT_CONFIRMED`다. `given: true`인데 이미 지급되었으면 409 `ALREADY_GIVEN`이다. `given: false`는 지급 시각을 지운다.
 
-**`GET /api/admin/export`** 전체 참가자 현황을 CSV로 돌려준다. `Content-Type: text/csv; charset=utf-8`, 본문 앞에 BOM을 붙인다. 구역 열은 인증 시각이고 미방문이면 비운다. 당첨 경품은 확정된 것만, 여러 개면 세미콜론으로 잇는다(D-17).
+**`GET /api/admin/export`** 전체 참가자 현황을 CSV로 돌려준다. `Content-Type: text/csv; charset=utf-8`, 본문 앞에 BOM을 붙인다. 구역 열은 인증 시각이고 미방문이면 비운다. 완주 열은 완주자만 `Y`, 아니면 빈칸이다. 당첨 경품은 확정된 것만, 여러 개면 세미콜론으로 잇고 지급 시각도 같은 순서로 세미콜론으로 잇는다(D-17). 시각은 모두 한국 시간 `YYYY-MM-DD HH:mm:ss`다. 줄 끝은 CRLF다.
 
 ```
 참가번호,구역 1,구역 2,구역 3,구역 4,구역 5,완주,당첨 경품,지급 시각
@@ -386,10 +386,10 @@ alter table draw_winners enable row level security;
 | 중복 인증 방지 | `visits` 기본키 (참가번호, 구역)에 `ON CONFLICT DO NOTHING`으로 넣는다. 영향받은 행이 0이면 `alreadyVisited: true` |
 | 완주 판정 | 참가번호별 `visits` 건수가 `zones` 전체 건수와 같다 |
 | 추첨 후보 | 완주자 전체에서, `excludePrevious`가 참이면 확정된(`confirmed`) 이전 당첨자를 뺀다. 부재자(`absent`)는 빼지 않는다 |
-| 재추첨 후보 | 추첨 후보에서 이 회차의 모든 당첨 기록(`pending`, `absent`)을 추가로 뺀다. 부족하면 409 `NOT_ENOUGH_CANDIDATES` |
+| 재추첨 후보 | 추첨 후보에서 이 회차의 모든 당첨 기록(`pending`, `absent`)을 추가로 뺀다. 재추첨 인원보다 적으면 후보 수만큼만 뽑고, 0명이면 409 `NOT_ENOUGH_CANDIDATES` |
 | 회차 상태 | 새 추첨은 `pending`으로 만든다. `pending` 회차가 있으면 새 추첨을 막는다. 재추첨과 확정은 `pending`에서만, 지급 처리는 `confirmed`에서만 한다 |
-| 경품 순서 | `prizes.sort` 순서대로 진행한다. [다음 경품 →]은 아직 추첨하지 않은 다음 경품을 고른다 |
-| 추첨 유효성 | 당첨 인원은 양의 정수다. 후보 수보다 많으면 409로 거부한다 |
+| 경품 순서 | `prizes.sort` 순서대로 진행한다. [다음 경품 →]은 확정된 회차가 없는 다음 경품을 고른다. 확정된 회차가 있는 경품으로 다시 추첨하면 409 `PRIZE_ALREADY_DRAWN`. 잘못 확정한 회차는 Supabase 대시보드에서 지운다 |
+| 추첨 유효성 | 당첨 인원은 양의 정수다. 후보가 그보다 적으면 거부하지 않고 후보 수만큼 뽑는다. 후보가 0명일 때만 409 `NOT_ENOUGH_CANDIDATES` |
 | 무작위성 | 서버에서 `crypto.randomInt`로 후보를 섞어 앞에서부터 뽑는다. 연출은 정해진 결과를 보여 줄 뿐이다 |
 | 회차 안 중복 당첨 방지 | `draw_winners` 기본키 (회차, 참가번호). 비복원 추출이므로 같은 회차에 같은 번호가 두 번 나오지 않는다 |
 | 중복 지급 방지 | `update ... where gift_given_at is null` 조건부 갱신. 영향받은 행이 0이면 409 `ALREADY_GIVEN` |
@@ -536,7 +536,7 @@ Supabase CLI는 쓰지 않는다. SQL 파일을 대시보드에 붙여 넣는 �
 | ----------------------- | --------------------- | --------------------------------------------------------------------- |
 | `lib/participant-no.ts` | 참가번호 정규화 (6장)         | `"007"` → 7, `" 42 "` → 42, `"0"` · `"1000"` · `"7a"` · `""` → 거부     |
 | `lib/completion.ts`     | 완주 판정                 | 방문 구역 수가 전체 구역 수와 같을 때만 참                                             |
-| `lib/draw.ts`           | 추첨 후보, 재추첨 후보, 무작위 추출 | 확정 당첨자 제외·부재자 포함, 이 회차 기록 제외, 후보 부족 시 오류, 같은 회차에 중복 없음, 주입한 난수로 결과 재현 |
+| `lib/draw.ts`           | 추첨 후보, 재추첨 후보, 무작위 추출 | 확정 당첨자 제외·부재자 포함, 이 회차 기록 제외, 후보가 적으면 후보 수만큼·0명이면 오류, 같은 회차에 중복 없음, 주입한 난수로 결과 재현 |
 | `lib/draw-state.ts`     | 회차 상태 전이              | pending이 있으면 새 추첨 거부, 확정된 회차 재추첨 거부, 미확정 회차 지급 거부                     |
 | `lib/auth.ts`           | 세션 토큰 서명·검증           | 서명 위조 거부, 만료 거부, 비밀번호 상수 시간 비교                                        |
 | `lib/csv.ts`            | CSV 생성                | BOM, 열 순서, 미방문 빈칸, 당첨 경품 세미콜론 연결                                      |
@@ -568,7 +568,8 @@ Route Handler와 화면은 단위 테스트 대상이 아니다. 8.2의 수동 �
 
 **추첨과 지급**
 
-- [ ] 당첨 인원이 후보 수보다 많으면 409다.
+- [ ] 당첨 인원이 후보 수보다 많으면 후보 수만큼만 뽑히고, 후보가 0명이면 409다.
+- [ ] 확정한 경품으로 다시 추첨하면 409다.
 - [ ] 발표 화면을 닫고 다시 열어도 결과가 남는다. 확정 전 임시 결과도 남는다.
 - [ ] 임시 결과에서 번호 2개를 골라 재추첨하면 그 2개만 바뀌고, 부재자는 같은 회차에서 다시 나오지 않는다.
 - [ ] 확정 전에는 [선물 주기]와 [다음 경품 →]이 막힌다.
@@ -599,4 +600,6 @@ Route Handler와 화면은 단위 테스트 대상이 아니다. 8.2의 수동 �
 | 2026-10-14 | 참가자 화면 디자인 확정(디자인 캔버스 「E 최종」): 3.2 카드 문구를 짧게 고치고 현재 위치 카드 가운데 정렬, 구역 목록을 S자 경로 위 입체 스탬프로, 완주 카드를 입체로. 7.6에 `app/globals.css`, `components/`, `lib/status.ts`, `lib/status-query.ts` 추가 |
 | 2026-10-14 | D-07 수정 반영: [다른 번호로 조회] 버튼 삭제(3.2 카드 6, 동작 규칙, 8.2). 「추첨 응모 완료」 배지를 경로 아래 가운데로 |
 | 2026-10-15 | 로그인 페이지를 `/admin/login`으로 분리: 3.1 행 추가, 3.3·3.4·3.5 이동 규칙 수정, 3.6 신설(보호 대상, `next` 경로 규칙, 창 두 개). 7.5 절차 8 수정. 7.6에 `admin/login/page.tsx`, `admin/login/_components/`, `lib/admin-session.ts` 추가, `components/`는 공용 컴포넌트만(`print-button.tsx`를 `qr/_components/`로 이동) |
+| 2026-10-15 | 5.3 export: 완주 열 `Y`/빈칸, 시각은 한국 시간 `YYYY-MM-DD HH:mm:ss`, 지급 시각도 세미콜론 연결, 줄 끝 CRLF |
+| 2026-10-15 | 추첨 규칙 2건 변경: ① 후보가 당첨 인원보다 적으면 거부하지 않고 후보 수만큼 뽑는다(0명일 때만 409 `NOT_ENOUGH_CANDIDATES`) ② 확정된 회차가 있는 경품으로 다시 추첨하면 409 `PRIZE_ALREADY_DRAWN`. 5.1 오류 표, 5.3 draws, 6장, 8.1, 8.2 수정 |
 | 2026-10-15 | 3.6 `next` 경로 규칙에 역슬래시 차단 추가. 로컬에서 `next=/%5Cevil.com`이 외부로 이동하는 것을 재현해 확인. 5.3 `Secure`는 운영 빌드에서만. 7.6에 `admin/_components/logout-button.tsx` 추가 |
