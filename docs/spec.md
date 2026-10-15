@@ -55,7 +55,7 @@
 | A-09 | 발표 화면 | 필수 | `/admin/draw`를 새 창으로 열어 프로젝터에 띄운다. 전체 화면이고, 당첨 번호는 이 화면으로만 발표한다 |
 | A-10 | 추첨 후보 | 필수 | 「완주자 − 확정된 이전 당첨자」로 후보를 만든다(D-04). 부재자로 재추첨된 사람은 빼지 않는다 |
 | A-11 | 당첨 인원 | 필수 | 경품 목록에 등록한 인원을 기본값으로 쓴다. 추첨 직전에 바꿀 수 있다 |
-| A-12 | 경품 목록 | 필수 | 등급, 이름, 당첨 인원, 순서를 미리 등록한다. 추첨은 이 순서대로 진행한다(D-19). 이미 추첨한 경품은 수정할 수 없다 |
+| A-12 | 경품 목록 | 필수 | 등급, 이름, 당첨 인원, 순서를 미리 등록한다. 추첨은 이 순서대로 진행한다(D-19). 이미 추첨한 경품은 수정·삭제할 수 없다. [추첨 시작]을 한 번이라도 누른 경품은 확정 전이어도 이미 추첨한 경품이다 |
 | A-13 | 당첨자 선정 | 필수 | 서버에서 무작위로 뽑아 저장한다 |
 | A-14 | 추첨 연출 | 중요 | 연출 방식은 미정이다. 효과음은 넣는다. 연출은 서버가 정한 결과를 보여 줄 뿐이다 |
 | A-15 | 결과 표시 | 필수 | 당첨 번호를 격자로 크게 보여 준다 |
@@ -119,8 +119,8 @@ QR 주소 형식: `https://bimlizecon2026.netlify.app/?z={구역 토큰}`
 | 상단 버튼 | [발표 화면 열기] (`/admin/draw`를 새 창으로), [경품 목록], [QR 인쇄 페이지], [CSV 내려받기], [로그아웃] |
 | 통계 | 전체 참가자, 완주자, 지급 완료, 진행 중 인원. 지급 진행률(당첨자 대비 지급 완료 인원과 비율) |
 | 참가자 목록 | 번호, 구역별 인증 여부, 완주, 당첨 경품, 지급 체크박스, 삭제 버튼. 「완주자 중 선물 미지급자」 필터 |
-| 경품 목록 | 등급, 이름, 당첨 인원, 순서를 등록·수정한다. 이미 추첨한 경품은 잠긴다 |
-| 자동 갱신 | 1분 간격 스위치와 [새로고침] 버튼. 탭이 보이지 않으면 멈추고, 켠 지 30분이 지나면 자동으로 꺼진다. 마지막 갱신 시각을 표시한다 |
+| 경품 목록 | 등급, 이름, 당첨 인원, 순서를 등록·수정한다. 이미 추첨한 경품은 수정·삭제할 수 없다(A-12) |
+| 자동 갱신 | 1분 간격 스위치와 [새로고침] 버튼. 콘솔을 열면 스위치가 켜진 상태로 시작한다. 탭이 보이지 않으면 멈추고, 켠 지 30분이 지나면 자동으로 꺼진다. 마지막 갱신 시각을 표시한다 |
 
 발표 화면에서 확정하거나 지급 처리한 내용은 콘솔의 다음 갱신 때 반영된다. 바로 보려면 [새로고침]을 누른다.
 
@@ -131,7 +131,7 @@ QR 주소 형식: `https://bimlizecon2026.netlify.app/?z={구역 토큰}`
 | 영역 | 구성 |
 |---|---|
 | 머리글 | 왼쪽에 행사 이름 「KCIM BIMlize Con 2026 · LUCKY DRAW」 |
-| 경품 표시 | 왼쪽 위에 「N등 경품」 작은 라벨과 경품 이름을 크게. 오른쪽 위에 「N명 추첨 / 남은 당첨 N명」 |
+| 경품 표시 | 왼쪽 위에 「N등 경품」 작은 라벨과 경품 이름을 크게. 오른쪽 위에 「N명 추첨」 |
 | 중앙 | 추첨 연출 영역(연출 방식은 미정). 결과 단계에서는 당첨 번호 격자 |
 | 하단 버튼 | [일시정지] [추첨 시작] [이전 결과] [다음 경품 →] |
 | 우측 패널 | 「당첨 현황」. 확정된 회차의 당첨 번호를 등급별로 누적 표시한다. 상단에 전체 진행률(확정 인원 / 전체 경품 인원) |
@@ -142,12 +142,13 @@ QR 주소 형식: `https://bimlizecon2026.netlify.app/?z={구역 토큰}`
 |---|---|
 | 준비 | 현재 경품, 후보 수, 이전 당첨자 제외 스위치, 당첨 인원(기본값은 경품 목록, 수정 가능), [추첨 시작] |
 | 추첨 중 | 연출(미정). [일시정지] |
-| 결과(임시) | 당첨 번호 격자. 번호를 눌러 선택할 수 있다. 안내문 「부재자가 있으면 해당 번호를 모두 선택한 뒤 [선택 번호 재추첨]을 눌러주세요」. 버튼 [✓ 당첨 확정] [선택 번호 재추첨] |
-| 확정 후 | 같은 격자에 「확정」 표시. [명단 복사], 번호마다 [선물 주기], [다음 경품 →] |
+| 결과(임시) | 당첨 번호 격자. 재추첨으로 빠진 부재자는 격자에 보이지 않는다. 번호를 눌러 선택할 수 있다. 안내문 「부재자가 있으면 해당 번호를 모두 선택한 뒤 [선택 번호 재추첨]을 눌러주세요」. 버튼 [✓ 당첨 확정] [선택 번호 재추첨] |
+| 확정 후 | 같은 격자에 「확정」 표시. [명단 복사], 번호마다 [선물 주기], [다음 경품 →]. 지급한 번호의 버튼은 「지급 완료」로 바뀌고, 다시 누르면 확인 창을 거쳐 지급을 취소한다(A-20) |
 
 **동작 규칙**
 
 - 확정 전에 창을 닫거나 새로고침해도 임시 결과는 서버에 남는다. 다시 열면 결과(임시) 단계부터 이어진다.
+- 당첨 번호 격자는 참가번호 오름차순으로 놓는다. 뽑힌 순서는 저장하지 않는다.
 - 재추첨은 선택한 번호만 바꾼다. 나머지 번호는 그대로다. 재추첨된 번호(부재자)는 같은 회차에서 다시 뽑히지 않지만 다음 경품에서는 다시 후보가 된다.
 - 확정 전에는 [선물 주기]와 [다음 경품 →]을 누를 수 없다.
 - [이전 결과]는 확정된 과거 회차를 보여 준다. 모든 경품을 마치면 [다음 경품 →] 대신 「모든 추첨이 끝났습니다」를 보여 준다.
@@ -243,26 +244,29 @@ alter table draw_winners enable row level security;
 
 - 요청과 응답은 JSON이다. CSV 내보내기만 예외다.
 - 관리자 인증은 공용 비밀번호 1개다(D-12). `POST /api/admin/login`에 비밀번호를 보내면 서버가 서명된 세션 토큰을 HttpOnly 쿠키로 발급한다. 관리자 API는 이 쿠키를 검증하고, 없거나 만료되었거나 서명이 틀리면 401이다.
-- 오류 응답 형식
+- 오류 응답 형식. 본문에는 오류 코드만 담는다. 안내 문구는 화면이 HTTP 상태와 코드를 보고 정한다(3.2, 3.6).
 
 ```json
-{ "error": { "code": "INVALID_TOKEN", "message": "잘못된 QR입니다." } }
+{ "error": "INVALID_TOKEN" }
 ```
 
 | HTTP 상태 | 오류 코드 | 뜻 |
 |---|---|---|
+| 400 | `INVALID_BODY` | 요청 본문이 JSON이 아니다 |
 | 400 | `INVALID_PARTICIPANT_NO` | 참가번호가 비었거나 1~999 정수가 아니다 |
 | 400 | `INVALID_WINNER_COUNT` | 당첨 인원이 양의 정수가 아니다 |
 | 400 | `INVALID_WINNER_SELECTION` | 재추첨 대상 번호가 이 회차의 임시 당첨자가 아니거나, 지급 대상 번호가 이 회차의 확정 당첨자가 아니다(부재자 등) |
 | 401 | `UNAUTHORIZED` | 관리자 세션 쿠키가 없거나 만료되었거나 위조되었다 |
 | 401 | `WRONG_PASSWORD` | 관리자 비밀번호가 틀리다 |
 | 404 | `INVALID_TOKEN` | 토큰에 맞는 구역이 없다 |
+| 404 | `DRAW_NOT_FOUND` | 재추첨·확정·지급 요청의 회차 번호에 맞는 회차가 없다 |
 | 409 | `NOT_ENOUGH_CANDIDATES` | 후보가 0명이라 뽑을 수 없다. 후보가 당첨 인원보다 적기만 하면 거부하지 않고 후보 수만큼 뽑는다 |
 | 409 | `DRAW_PENDING_EXISTS` | 확정하지 않은 회차가 있어 새 추첨을 시작할 수 없다 |
 | 409 | `DRAW_NOT_PENDING` | 이미 확정된 회차를 재추첨하거나 다시 확정하려 한다 |
 | 409 | `DRAW_NOT_CONFIRMED` | 확정되지 않은 회차의 당첨자를 지급 처리하려 한다 |
 | 409 | `PRIZE_ALREADY_DRAWN` | 이미 추첨해 확정한 경품을 바꾸거나, 그 경품으로 다시 추첨하려 한다 |
 | 409 | `ALREADY_GIVEN` | 이미 지급 처리된 당첨자다 |
+| 500 | `DB_ERROR` | DB 읽기·쓰기에 실패했다. 자세한 내용은 서버 로그에만 남긴다 |
 
 ### 5.2 참가자 API (공개)
 
@@ -300,11 +304,14 @@ alter table draw_winners enable row level security;
 
 **`POST /api/admin/logout`** 세션 쿠키를 지운다. 응답은 204다.
 
-**`GET /api/admin/participants?filter={all|uncollected}`** 통계와 참가자 목록을 돌려준다. `uncollected`는 「완주자 중 선물 미지급자」다.
+**`GET /api/admin/participants?filter={all|uncollected}`** 통계와 참가자 목록을 돌려준다. `uncollected`는 「완주자 중 선물 미지급자」로, 확정 당첨된 경품 중 아직 지급받지 않은 것이 하나라도 있는 참가자다.
+
+`zones`는 구역 순서(`sort`)대로이고, 콘솔 표의 열 제목에 쓴다. `visits`의 키는 구역 `code`다. `stats.winners`와 `stats.giftGiven`은 사람 수가 아니라 확정 당첨 건수다. 한 사람이 경품 두 개에 당첨되면 2건이다.
 
 ```json
 {
   "stats": { "total": 120, "completed": 80, "giftGiven": 10, "inProgress": 40, "winners": 21 },
+  "zones": [ { "code": "zone1", "name": "구역 1" }, { "code": "zone2", "name": "구역 2" } ],
   "participants": [
     {
       "participantNo": 7,
@@ -318,7 +325,7 @@ alter table draw_winners enable row level security;
 
 **`DELETE /api/admin/participants/{참가번호}`** 참가자와 방문 기록, 당첨 기록을 지운다. 응답은 204다.
 
-**`GET /api/admin/prizes`** 경품 목록을 추첨 순서대로 돌려준다. `drawn`은 이미 추첨한 경품인지다.
+**`GET /api/admin/prizes`** 경품 목록을 추첨 순서대로 돌려준다. `drawn`은 이미 추첨한 경품인지다. 그 경품의 회차가 하나라도 있으면(임시 회차 포함) `true`다(A-12).
 
 ```json
 { "prizes": [ { "id": 1, "rank": 5, "name": "5등 경품", "winnerCount": 10, "sort": 1, "drawn": false } ] }
@@ -328,7 +335,7 @@ alter table draw_winners enable row level security;
 
 요청: `{ "prizes": [ { "id": 1, "rank": 5, "name": "5등 경품", "winnerCount": 10, "sort": 1 } ] }` (`id`가 없으면 새로 만든다)
 
-**`GET /api/admin/draws`** 추첨 이력과 당첨자를 돌려준다. 확정하지 않은 임시 회차도 포함한다.
+**`GET /api/admin/draws`** 추첨 이력과 당첨자를 돌려준다. 확정하지 않은 임시 회차도 포함한다. 뽑힌 순서는 저장하지 않으므로 `winners`는 참가번호 오름차순이다. `candidateCount`는 「이전 당첨자 제외」를 켰을 때의 후보 수, `completedCount`는 완주자 수(끈 때의 후보 수)다. 발표 화면 준비 단계가 스위치에 맞는 숫자를 보여 준다.
 
 ```json
 {
@@ -344,7 +351,8 @@ alter table draw_winners enable row level security;
       ]
     }
   ],
-  "candidateCount": 80
+  "candidateCount": 70,
+  "completedCount": 80
 }
 ```
 
@@ -357,15 +365,15 @@ alter table draw_winners enable row level security;
 
 요청: `{ "participantNos": [42, 108] }`
 응답(200): 갱신된 회차. 선택한 번호는 `absent`, 새로 뽑힌 번호는 `pending`이다.
-회차가 `pending`이 아니면 409 `DRAW_NOT_PENDING`, 번호가 이 회차의 `pending` 당첨자가 아니면 400 `INVALID_WINNER_SELECTION`이다.
+회차가 없으면 404 `DRAW_NOT_FOUND`, `pending`이 아니면 409 `DRAW_NOT_PENDING`, 번호가 이 회차의 `pending` 당첨자가 아니면 400 `INVALID_WINNER_SELECTION`이다.
 
-**`POST /api/admin/draws/{id}/confirm`** 회차를 확정한다. `pending` 당첨자를 모두 `confirmed`로 바꾸고 `confirmedAt`을 기록한다. 응답(200)은 갱신된 회차다. 이미 확정된 회차면 409 `DRAW_NOT_PENDING`이다.
+**`POST /api/admin/draws/{id}/confirm`** 회차를 확정한다. `pending` 당첨자를 모두 `confirmed`로 바꾸고 `confirmedAt`을 기록한다. 응답(200)은 갱신된 회차다. 회차가 없으면 404 `DRAW_NOT_FOUND`, 이미 확정된 회차면 409 `DRAW_NOT_PENDING`이다.
 
 **`PATCH /api/admin/winners`** 지급 여부를 바꾼다.
 
 요청: `{ "drawId": 1, "participantNo": 7, "given": true }`
 응답(200): `{ "drawId": 1, "participantNo": 7, "giftGivenAt": "2026-10-27T17:10:00Z" }`
-회차가 확정되지 않았으면 409 `DRAW_NOT_CONFIRMED`, 그 번호가 이 회차의 `confirmed` 당첨자가 아니면(부재자, 없는 번호) 400 `INVALID_WINNER_SELECTION`이다. `given: true`인데 이미 지급되었으면 409 `ALREADY_GIVEN`이다. `given: false`는 지급 시각을 지운다.
+회차가 없으면 404 `DRAW_NOT_FOUND`, 확정되지 않았으면 409 `DRAW_NOT_CONFIRMED`, 그 번호가 이 회차의 `confirmed` 당첨자가 아니면(부재자, 없는 번호) 400 `INVALID_WINNER_SELECTION`이다. `given: true`인데 이미 지급되었으면 409 `ALREADY_GIVEN`이다. `given: false`는 지급 시각을 지운다.
 
 **`GET /api/admin/export`** 전체 참가자 현황을 CSV로 돌려준다. `Content-Type: text/csv; charset=utf-8`, 본문 앞에 BOM을 붙인다. 구역 열은 인증 시각이고 미방문이면 비운다. 완주 열은 완주자만 `Y`, 아니면 빈칸이다. 당첨 경품은 확정된 것만, 여러 개면 세미콜론으로 잇고 지급 시각도 같은 순서로 세미콜론으로 잇는다(D-17). 시각은 모두 한국 시간 `YYYY-MM-DD HH:mm:ss`다. 줄 끝은 CRLF다.
 
@@ -487,7 +495,15 @@ Supabase CLI는 쓰지 않는다. SQL 파일을 대시보드에 붙여 넣는 �
 │  ├─ admin/login/_components/admin-login-form.tsx ← 로그인 입력란·버튼 (클라이언트). 이 페이지만 쓰므로 페이지 옆에 둔다. `_` 폴더는 라우트가 되지 않는다
 │  ├─ admin/page.tsx         ← 관리자 콘솔 (서버: 로그인 보호 → 통계·목록은 클라이언트 컴포넌트)
 │  ├─ admin/_components/logout-button.tsx ← [로그아웃] 버튼 (클라이언트)
+│  ├─ admin/_components/open-draw-button.tsx ← [발표 화면 열기] 새 창 (클라이언트)
+│  ├─ admin/_components/admin-console.tsx ← 통계·자동 갱신·참가자 목록·지급 체크·삭제 (클라이언트)
+│  ├─ admin/_components/use-auto-refresh.ts ← 1분 갱신, 탭 숨김 시 멈춤, 30분 뒤 꺼짐 (클라이언트 훅)
+│  ├─ admin/_components/participant-table.tsx ← 참가자 목록 표 (표시 전용)
+│  ├─ admin/_components/prize-editor.tsx ← 경품 목록 등록·수정 (클라이언트)
 │  ├─ admin/draw/page.tsx    ← 추첨·발표 화면 (전체 화면, 새 창)
+│  ├─ admin/draw/_components/draw-screen.tsx ← 발표 화면 본체. 단계 판단·추첨·재추첨·확정·지급 (클라이언트)
+│  ├─ admin/draw/_components/winner-grid.tsx ← 당첨 번호 격자 (표시 전용)
+│  ├─ admin/draw/_components/winners-panel.tsx ← 우측 「당첨 현황」 패널 (표시 전용)
 │  ├─ qr/page.tsx            ← QR 인쇄
 │  ├─ qr/_components/print-button.tsx ← [인쇄] 버튼 (클라이언트)
 │  ├─ manual/page.tsx        ← 이용 매뉴얼
@@ -507,8 +523,11 @@ Supabase CLI는 쓰지 않는다. SQL 파일을 대시보드에 붙여 넣는 �
 │        └─ export/route.ts
 ├─ components/               ← 여러 페이지가 함께 쓰는 클라이언트 컴포넌트 ("use client"). 한 페이지만 쓰는 것은 그 페이지의 `_components/`에 둔다
 │  └─ participant-screen.tsx ← 참가자 화면 본체. 상태·fetch·localStorage·카드 7개
-├─ lib/                      ← 순수 함수. 단위 테스트 대상 (8.1)
+├─ lib/                      ← 규칙은 순수 함수로 두고 단위 테스트한다 (8.1). 서버 전용·브라우저 전용 도우미는 설명에 그렇게 적는다
 │  ├─ supabase-server.ts     ← 서버 전용 DB 클라이언트
+│  ├─ api-error.ts           ← 오류 코드 → HTTP 상태 대응, 오류 응답 생성 (서버 전용, 테스트 대상 아님)
+│  ├─ admin-query.ts         ← 관리자 API 공용 DB 조회. 1000행씩 나눠 읽기 (서버 전용, 테스트 대상 아님)
+│  ├─ admin-fetch.ts         ← 관리자 화면의 API 호출 도우미. 401이면 로그인으로 (브라우저 전용, 테스트 대상 아님)
 │  ├─ status.ts              ← 현황 계산 (두 참가자 API 가 공유하는 응답 조립)
 │  ├─ status-query.ts        ← 현황·구역 조회 (DB 접근, 서버 전용, 테스트 대상 아님)
 │  ├─ auth.ts                ← 세션 토큰 발급·검증, 비밀번호 비교, next 경로 검사 (순수 함수)
@@ -516,7 +535,7 @@ Supabase CLI는 쓰지 않는다. SQL 파일을 대시보드에 붙여 넣는 �
 │  ├─ participant-no.ts      ← 참가번호 정규화
 │  ├─ completion.ts          ← 완주 판정
 │  ├─ draw.ts                ← 추첨 후보·재추첨·무작위 추출
-│  ├─ draw-state.ts          ← 회차 상태 전이
+│  ├─ draw-state.ts          ← 회차 상태 전이, 경품 목록 변경 내용 나누기
 │  └─ csv.ts                 ← CSV 생성
 ├─ tests/                    ← lib/ 모듈별 Vitest 테스트
 └─ supabase/
@@ -537,7 +556,7 @@ Supabase CLI는 쓰지 않는다. SQL 파일을 대시보드에 붙여 넣는 �
 | `lib/participant-no.ts` | 참가번호 정규화 (6장)         | `"007"` → 7, `" 42 "` → 42, `"0"` · `"1000"` · `"7a"` · `""` → 거부     |
 | `lib/completion.ts`     | 완주 판정                 | 방문 구역 수가 전체 구역 수와 같을 때만 참                                             |
 | `lib/draw.ts`           | 추첨 후보, 재추첨 후보, 무작위 추출 | 확정 당첨자 제외·부재자 포함, 이 회차 기록 제외, 후보가 적으면 후보 수만큼·0명이면 오류, 같은 회차에 중복 없음, 주입한 난수로 결과 재현 |
-| `lib/draw-state.ts`     | 회차 상태 전이              | pending이 있으면 새 추첨 거부, 확정된 회차 재추첨 거부, 미확정 회차 지급 거부                     |
+| `lib/draw-state.ts`     | 회차 상태 전이, 경품 목록 변경 | pending이 있으면 새 추첨 거부, 확정된 회차 재추첨 거부, 미확정 회차 지급 거부, 이미 추첨한 경품 수정·삭제 거부 |
 | `lib/auth.ts`           | 세션 토큰 서명·검증           | 서명 위조 거부, 만료 거부, 비밀번호 상수 시간 비교                                        |
 | `lib/csv.ts`            | CSV 생성                | BOM, 열 순서, 미방문 빈칸, 당첨 경품 세미콜론 연결                                      |
 
@@ -604,3 +623,7 @@ Route Handler와 화면은 단위 테스트 대상이 아니다. 8.2의 수동 �
 | 2026-10-15 | 5.3 export: 완주 열 `Y`/빈칸, 시각은 한국 시간 `YYYY-MM-DD HH:mm:ss`, 지급 시각도 세미콜론 연결, 줄 끝 CRLF |
 | 2026-10-15 | 추첨 규칙 2건 변경: ① 후보가 당첨 인원보다 적으면 거부하지 않고 후보 수만큼 뽑는다(0명일 때만 409 `NOT_ENOUGH_CANDIDATES`) ② 확정된 회차가 있는 경품으로 다시 추첨하면 409 `PRIZE_ALREADY_DRAWN`. 5.1 오류 표, 5.3 draws, 6장, 8.1, 8.2 수정 |
 | 2026-10-15 | 3.6 `next` 경로 규칙에 역슬래시 차단 추가. 로컬에서 `next=/%5Cevil.com`이 외부로 이동하는 것을 재현해 확인. 5.3 `Secure`는 운영 빌드에서만. 7.6에 `admin/_components/logout-button.tsx` 추가 |
+| 2026-10-15 | 5.1 오류 응답 형식을 구현에 맞춰 `{ "error": "CODE" }`로 변경(화면은 상태 코드로 문구를 정하므로 `message` 불필요). 오류 표에 `INVALID_BODY`(400), `DB_ERROR`(500) 추가 |
+| 2026-10-15 | 404 `DRAW_NOT_FOUND` 추가(5.1, 5.3 redraw·confirm·winners). 당첨 번호는 뽑힌 순서를 저장하지 않고 참가번호 오름차순으로 표시(3.4, 5.3 draws). `uncollected` 필터 뜻 명시(5.3 participants) |
+| 2026-10-15 | 이미 추첨한 경품은 [추첨 시작]을 누른 때부터(A-12, 3.3, 5.3 prizes). draws 응답에 `completedCount`, participants 응답에 `zones` 추가(5.3). 발표 화면의 「남은 당첨 N명」 삭제(3.4). 7.6에 작업 7~9 파일 추가, `lib/` 설명을 용도 표시 방식으로 수정 |
+| 2026-10-15 | 콘솔 자동 갱신은 켜진 상태로 시작(3.3). 결과(임시) 격자에서 부재자 제외, 발표 화면에서 지급 취소 허용(3.4). 통계의 당첨·지급 숫자는 건수(5.3 participants) |

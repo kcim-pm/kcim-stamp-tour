@@ -262,3 +262,24 @@ button, input { font-family: inherit; }
   .qr-sheet:last-child { page-break-after: auto; break-after: auto; }
   .qr-box { width: 12cm; }
 }
+
+/* ── 의사 코드 (작업 8·9, 아직 구현 전): 관리자 콘솔·발표 화면 클래스 ─────────────
+   spec 3.2 동작 규칙과 같이 색·형태는 여기에 두고 화면은 클래스만 붙인다. 기존 토큰(--accent, --red 등)을 쓴다.
+
+   콘솔 (노트북, 폭 1280px 안팎)
+     .console           넓은 틀. max-width 1200px, 가운데 정렬. 참가자 화면의 .screen 폭 제한을 쓰지 않는다
+     .console-header    제목과 상단 버튼 5개를 한 줄에. 좁으면 줄바꿈
+     .stat-grid         통계 4칸 + 지급 진행률 막대
+     .admin-table       참가자 목록 표. 머리글 고정(position: sticky), 줄무늬, 숫자 열 가운데 정렬
+     .switch            자동 갱신 스위치
+
+   발표 화면 (프로젝터, 16:9)
+     .draw-screen       100vw x 100vh, overflow hidden. 격자: 왼쪽 본문 3fr | 오른쪽 패널 1fr
+     .draw-prize        「N등 경품」 라벨 + 경품 이름 (clamp 로 화면 크기에 맞춰 크게)
+     .winner-grid       --cols 변수로 5열 또는 10열. 칸 안 번호는 뒷줄에서도 읽히게 매우 크게
+     .winner-cell.is-selected   부재자로 고른 칸 (빨간 테두리)
+     .winner-cell.is-new        재추첨으로 새로 뽑힌 칸 (잠깐 강조)
+     .winners-panel     우측 패널. 안쪽만 세로 스크롤
+     .draw-controls     하단 버튼 줄. 위치 고정, 단계에 맞지 않는 버튼은 흐리게(disabled)
+     연출 애니메이션은 prefers-reduced-motion 이면 끈다 (참가자 화면과 같은 규칙)
+*/

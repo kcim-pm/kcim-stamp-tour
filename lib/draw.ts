@@ -35,7 +35,7 @@ export function pickRedrawCandidates(candidates: number[], thisDrawNos: number[]
 // spec 6장 「무작위성」「추첨 유효성」
 // 섞고 앞에서 자르는 비복원 추출이므로 같은 번호가 두 번 나올 수 없다.
 // 후보가 count 보다 적으면 후보 전원이 당첨이다 (10/15 결정). 뽑을 사람이 0명일 때만 오류.
-// 돌려주는 순서는 뽑힌 순서 그대로다 (발표 화면이 그 순서로 보여 준다).
+// 돌려주는 순서는 뽑힌 순서 그대로다. DB 에는 순서를 저장하지 않고, 화면은 참가번호 순서로 보여 준다 (spec 3.4).
 export function drawWinners(candidates: number[], count: number, randomInt: RandomInt): number[] {
   if (!Number.isInteger(count) || count < 1) {
     throw new Error("INVALID_WINNER_COUNT");
