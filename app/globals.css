@@ -330,33 +330,84 @@ button, input { font-family: inherit; }
 .empty { padding: 24px; text-align: center; color: var(--muted); }
 
 /* ── 추첨·발표 화면 (프로젝터, 16:9) ── */
+/* 버튼이 없다 (D-20). 머리글 한 줄 아래에 무대 패널(왼쪽)과 당첨 현황 패널(오른쪽)을 같은 높이로 둔다.
+   값은 1280×720 디자인 캔버스를 기준으로 vw·vh 로 옮겼다. */
 .draw-screen {
   width: 100vw; height: 100vh; overflow: hidden;
-  display: grid; grid-template-columns: 3fr 1fr; grid-template-rows: 100%;
-  gap: 2vh; padding: 2.5vh 2vw;
+  display: flex; flex-direction: column; gap: 2vh; padding: 2.5vh 2vw;
 }
-.draw-main { display: flex; flex-direction: column; gap: 2vh; min-height: 0; min-width: 0; }
 .draw-header { font-size: clamp(14px, 1.6vw, 24px); font-weight: 900; letter-spacing: 1px; color: var(--accent); }
-.draw-prize { display: flex; justify-content: space-between; align-items: flex-end; gap: 2vw; }
-.draw-prize-name { font-size: clamp(32px, 4.4vw, 80px); font-weight: 900; line-height: 1.05; }
-.draw-prize-count { font-size: clamp(18px, 2.2vw, 40px); font-weight: 900; color: var(--accent); white-space: nowrap; }
+.draw-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 3fr 1fr; gap: 1.1vw; }
 .draw-stage {
-  flex: 1; min-height: 0; overflow: auto;
+  position: relative; min-height: 0; overflow: hidden;
   background: rgba(255, 255, 255, 0.75); border: 1px solid var(--line); border-radius: 24px;
-  padding: 3vh 2vw; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2.5vh; text-align: center;
+  padding: 3.5vh 2.8vw; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 3vh; text-align: center;
 }
+/* 타이틀은 위에 고정하고, 번호와 릴은 남는 공간 한가운데에 놓는다. */
+.draw-stage__body { flex: 1; min-height: 0; width: 100%; display: flex; align-items: center; justify-content: center; }
 .draw-big { font-size: clamp(28px, 3.6vw, 64px); font-weight: 900; }
 .draw-note { font-size: clamp(14px, 1.4vw, 22px); color: var(--ink-soft); font-weight: 700; }
-.draw-setup { display: flex; flex-direction: column; align-items: center; gap: 2vh; font-size: clamp(16px, 1.6vw, 26px); font-weight: 700; }
-.draw-setup .switch { font-size: inherit; }
-.draw-setup input[type="number"] {
-  width: 5em; padding: 6px 10px; font-size: inherit; font-weight: 900; text-align: center;
-  border: 2px solid var(--line); border-radius: 12px; color: var(--ink);
+.draw-error { position: absolute; left: 2vw; right: 2vw; bottom: 2vh; background: var(--red-bg); border: 1px solid var(--red-line); color: var(--red); border-radius: 12px; padding: 1vh 1.5vw; font-weight: 700; font-size: clamp(14px, 1.3vw, 20px); }
+
+/* 경품 소개 (준비 단계): 사진 크게 + 이름 + N명 추첨 */
+.prize-intro { flex: 1; min-height: 0; width: 100%; display: flex; align-items: center; gap: 2.8vw; text-align: left; }
+.prize-intro__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2.4vh; }
+.prize-intro__name { margin: 0; font-size: clamp(32px, 5vw, 96px); font-weight: 900; line-height: 1.05; letter-spacing: -0.02em; }
+.prize-intro__count { display: flex; align-items: baseline; gap: 0.6vw; color: var(--accent); font-size: clamp(16px, 1.7vw, 30px); font-weight: 900; }
+.prize-intro__count span { font-size: clamp(32px, 3.4vw, 64px); line-height: 1; }
+.prize-photo {
+  flex: none; width: clamp(140px, 28vw, 440px); aspect-ratio: 1; border-radius: 24px; overflow: hidden;
+  background: linear-gradient(180deg, #fff 0%, #f4efff 100%); color: var(--muted-2);
+  box-shadow: inset 6px 6px 14px rgba(255,255,255,0.95), inset -8px -10px 18px rgba(108,77,255,0.14), 0 14px 0 #d9d1ff;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1vh; font-size: clamp(12px, 1.2vw, 18px); font-weight: 700;
 }
-.draw-shuffle { font-size: clamp(80px, 16vw, 260px); font-weight: 900; color: var(--accent); font-variant-numeric: tabular-nums; animation: pop 0.3s ease-out; }
-.draw-actions { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
-.draw-actions .btn-ghost, .draw-controls .btn-ghost { height: clamp(40px, 5.5vh, 64px); padding: 0 clamp(14px, 1.6vw, 28px); font-size: clamp(14px, 1.4vw, 22px); border-radius: 14px; }
-.draw-controls { display: flex; justify-content: center; gap: 12px; }
+.prize-photo img { width: 100%; height: 100%; object-fit: cover; }
+/* 경품 타이틀 (추첨 중·결과): 같은 내용을 작게, 무대 위쪽 가운데 */
+.prize-title { display: flex; align-items: center; gap: 1.4vw; }
+.prize-title .prize-photo { width: clamp(48px, 5.6vw, 88px); border-radius: 16px; box-shadow: 0 6px 0 #d9d1ff; }
+.prize-title__name { margin: 0; font-size: clamp(22px, 2.8vw, 48px); font-weight: 900; line-height: 1.1; }
+.prize-title__count { margin-left: 0.6vw; font-size: clamp(14px, 1.7vw, 30px); font-weight: 900; color: var(--accent); white-space: nowrap; }
+
+/* 숫자 릴 (추첨 중). 띠 하나에 숫자 둘. 위 숫자가 나가는 동안 아래 숫자가 올라온다. */
+.reel { margin: 0; display: inline-flex; gap: 0.3vw; font-size: clamp(100px, 16vw, 300px); font-weight: 900; line-height: 1; letter-spacing: -0.05em; font-variant-numeric: tabular-nums; }
+.reel__col { display: inline-block; width: 0.62em; height: 1em; overflow: clip; }
+.reel__strip { display: flex; flex-direction: column; align-items: center; will-change: transform; }
+.reel__digit { display: block; height: 1em; }
+@media (prefers-reduced-motion: no-preference) {
+  .reel__strip { animation: reel-pass 0.16s linear infinite; }
+  .reel__col:nth-child(2) .reel__strip { animation-delay: -0.05s; }
+  .reel__col:nth-child(3) .reel__strip { animation-delay: -0.11s; }
+  .reel.is-paused .reel__strip { animation-play-state: paused; }
+}
+@keyframes reel-pass { from { transform: translateY(0); } to { transform: translateY(-1em); } }
+
+/* 당첨 번호. 상자 없이 숫자만. 크기(--size)와 열 수(--cols)는 lib/winner-layout.ts 가 인원에 따라 정한다. */
+/* --size 는 단위 없는 숫자(1280px 폭 기준 px). 숫자 × vw 로 화면 폭에 비례시킨다 (px × vw 는 CSS 에서 계산되지 않는다). */
+.winners { --size: 72; --cols: 5; width: 100%; font-size: calc(var(--size) * 100vw / 1280); font-weight: 900; line-height: 1.1; letter-spacing: -0.05em; font-variant-numeric: tabular-nums; }
+.winners--grid { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: 1.6vh 1vw; justify-items: center; }
+.winners--pair, .winners--single { display: flex; justify-content: center; align-items: center; gap: 1vh 6vw; }
+.winner {
+  padding: 0.02em 0.08em; border: 0; border-radius: 0.12em; background: transparent; color: var(--ink);
+  font: inherit; letter-spacing: inherit; cursor: pointer;
+  transition: background-color 0.14s, color 0.14s, transform 0.14s;
+}
+.winner:disabled { cursor: default; }
+.winner:active:not(:disabled) { transform: scale(0.97); }
+.winner:focus-visible { outline: 0.04em solid var(--accent); outline-offset: 0.04em; }
+.winner[aria-pressed="true"] { background: #ed5c00; color: #fff; }
+.winner.is-new { color: var(--accent); }
+/* 자릿수마다 0~9 띠를 두고 값(--d)까지 굴러 들어온다. 줄어든 움직임 환경에서는 바로 값으로 선다. */
+.winner__digits { display: inline-flex; }
+.winner__col { display: inline-block; height: 1em; overflow: clip; }
+.winner__strip { display: flex; flex-direction: column; transform: translateY(calc(var(--d) * -1em)); }
+.winner__strip > span { height: 1em; display: block; }
+@media (prefers-reduced-motion: no-preference) {
+  .winner:not(.is-in) .winner__strip { transform: translateY(-9em); }
+  .winner.is-in .winner__strip { transition: transform 1100ms cubic-bezier(0.16, 1, 0.3, 1) calc(var(--i) * 70ms); }
+  .winner { opacity: 0; transform: translateY(0.2em); }
+  .winner.is-in { opacity: 1; transform: none; transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1) calc(var(--i) * 70ms), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1) calc(var(--i) * 70ms), background-color 0.14s, color 0.14s; }
+}
+
 /* 종료 화면. 참가자 완주 카드의 .trophy·.confetti 를 프로젝터 크기로 키운다. */
 .draw-finish {
   position: relative; align-self: stretch; flex: 1; min-height: 0; overflow: hidden;
@@ -374,35 +425,54 @@ button, input { font-family: inherit; }
 }
 .draw-finish-sub { font-size: clamp(18px, 2vw, 36px); font-weight: 700; color: var(--ink-soft); }
 
-.draw-error { background: var(--red-bg); border: 1px solid var(--red-line); color: var(--red); border-radius: 12px; padding: 1vh 1.5vw; font-weight: 700; font-size: clamp(14px, 1.3vw, 20px); }
-
-/* 줄이 덜 차도(예: 3명, 7명) 카드가 가운데로 모이게 grid 대신 flex 줄바꿈을 쓴다.
-   카드 너비는 「한 줄에 --cols 개」가 들어가는 폭으로 고정한다. */
-.winner-grid { --cols: 5; --gap-x: 1vw; width: 100%; display: flex; flex-wrap: wrap; justify-content: center; gap: 1.4vh var(--gap-x); }
-.winner-cell {
-  flex: 0 0 calc((100% - (var(--cols) - 1) * var(--gap-x)) / var(--cols));
-  border: 3px solid transparent; border-radius: 18px; background: #fff; box-shadow: 0 4px 0 var(--line);
-  padding: 1.4vh 0.6vw; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1vh;
-  font: inherit; color: var(--ink);
-}
-button.winner-cell { cursor: pointer; }
-.winner-no { font-size: clamp(36px, calc(30vw / var(--cols)), 140px); font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
-.winner-cell.is-selected { border-color: var(--red); background: var(--red-bg); color: var(--red); }
-.winner-cell.is-new { animation: pop 0.6s cubic-bezier(0.2, 0.9, 0.2, 1.3) both; border-color: #ffab2e; }
-
+/* 당첨 현황. 경품 이름만. 지금 뽑는 경품은 연보라 띠, 끝난 경품은 번호 칩. */
 .winners-panel {
   background: #fff; border: 1px solid var(--line); border-radius: 20px; padding: 2vh 1vw;
-  display: flex; flex-direction: column; gap: 1.5vh; min-height: 0; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 1.6vh; min-height: 0; overflow-y: auto;
 }
 .winners-panel h2 { margin: 0; font-size: clamp(16px, 1.5vw, 24px); font-weight: 900; }
-.panel-prize h3 { margin: 0 0 6px; font-size: clamp(13px, 1.1vw, 18px); font-weight: 900; }
+.panel-prize { display: flex; flex-direction: column; gap: 0.8vh; }
+.panel-prize h3 { margin: 0; font-size: clamp(13px, 1.1vw, 18px); font-weight: 900; }
 .panel-prize.is-waiting h3 { color: var(--muted-2); font-weight: 700; }
+.panel-prize.is-current { padding: 1vh 0.8vw; border-radius: 10px; background: var(--accent-soft); }
+.panel-prize.is-current h3 { color: var(--accent-deep); }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .chip { background: var(--accent-soft); color: var(--accent-deep); border-radius: 8px; padding: 2px 8px; font-size: clamp(12px, 1vw, 16px); font-weight: 900; }
 
-.overlay { position: fixed; inset: 0; background: rgba(43, 37, 80, 0.45); display: flex; align-items: center; justify-content: center; padding: 4vh 4vw; z-index: 10; }
-.overlay-box { background: #fff; border-radius: 24px; padding: 3vh 2vw; width: min(1400px, 100%); max-height: 100%; overflow: auto; display: flex; flex-direction: column; gap: 2vh; }
+/* 운영자 패널. Tab 으로 아래에서 올라온다. 관객 화면에도 비치므로 필요한 순간에만 연다. */
+.panel {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+  padding: 1.6vh 2vw 1.8vh; background: rgba(43, 37, 80, 0.95); color: #fff;
+  display: flex; flex-direction: column; gap: 1.2vh; font-size: clamp(13px, 1.2vw, 16px); font-weight: 700;
+  animation: panel-in 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes panel-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.panel__row { display: flex; flex-wrap: wrap; align-items: center; gap: 1vh 1.8vw; }
+.panel__tag { background: var(--accent); border-radius: 8px; padding: 3px 10px; font-size: 0.85em; font-weight: 900; letter-spacing: 1px; }
+.panel__state { color: #c9c3ee; }
+.panel__state strong { color: #ffab2e; font-weight: 900; }
+.panel__switch { color: #fff; font-size: inherit; }
+.panel__switch .switch-track { background: #5a5380; }
+.panel__switch input:checked + .switch-track { background: var(--accent); }
+.panel__field { display: inline-flex; align-items: center; gap: 6px; }
+.panel__field input { width: 4.5em; padding: 4px 8px; text-align: center; font-weight: 900; font-size: inherit; border: 2px solid #5a5380; border-radius: 10px; color: var(--ink); background: #fff; }
+.panel__field input:disabled, .panel__switch input:disabled + .switch-track { opacity: 0.5; }
+.panel__close { margin-left: auto; padding: 6px 14px; border-radius: 10px; border: 0; background: var(--accent-deep); color: #fff; font-weight: 700; cursor: pointer; }
+.panel__close:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.keys { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 0.6vw; }
+.keys li { display: flex; flex-direction: column; gap: 2px; padding: 0.8vh 0.8vw; border-radius: 10px; background: rgba(255,255,255,0.08); font-size: 0.85em; transition: opacity 0.24s; }
+.keys li.is-off { opacity: 0.4; }
+.keys kbd { font-family: inherit; font-size: 1.15em; font-weight: 900; color: #ffab2e; }
+
+/* 이전 결과. H 로 여닫는다. 무대 위를 덮는 전체 화면. */
+.history {
+  position: fixed; inset: 0; z-index: 10; padding: 3vh 2vw; background: var(--gray-bg);
+  display: flex; flex-direction: column; gap: 2.5vh; overflow: auto;
+}
+.history__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1vh 2vw; }
+.history__head h2 { margin: 0; font-size: clamp(20px, 2.2vw, 36px); font-weight: 900; }
 .history-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.history .prize-title { align-self: center; }
 
 /* ── 이용 매뉴얼 (/manual) ── */
 .manual { padding-bottom: 32px; }

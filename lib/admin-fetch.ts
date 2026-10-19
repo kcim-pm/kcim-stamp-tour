@@ -49,6 +49,7 @@ const MESSAGES: Record<string, string> = {
   NOT_ENOUGH_CANDIDATES: "추첨할 후보가 없습니다",
   DRAW_PENDING_EXISTS: "확정하지 않은 추첨이 있습니다",
   INVALID_WINNER_COUNT: "당첨 인원은 1 이상의 정수여야 합니다",
+  INVALID_IMAGE_URL: "경품 사진 주소는 http:// 또는 https:// 로 시작해야 합니다",
   INVALID_WINNER_SELECTION: "선택한 번호를 처리할 수 없습니다. 새로고침해 주세요",
 };
 

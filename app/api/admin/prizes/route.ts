@@ -50,14 +50,14 @@ export async function PUT(request: NextRequest) {
     for (const p of toUpdate) {
       const { error } = await supabase
         .from("prizes")
-        .update({ name: p.name, winner_count: p.winnerCount, sort: p.sort })
+        .update({ name: p.name, winner_count: p.winnerCount, sort: p.sort, image_url: p.imageUrl })
         .eq("id", p.id);
       if (error) throw new DbError(error.message);
     }
     if (toInsert.length > 0) {
       const { error } = await supabase
         .from("prizes")
-        .insert(toInsert.map((p) => ({ name: p.name, winner_count: p.winnerCount, sort: p.sort })));
+        .insert(toInsert.map((p) => ({ name: p.name, winner_count: p.winnerCount, sort: p.sort, image_url: p.imageUrl })));
       if (error) throw new DbError(error.message);
     }
 

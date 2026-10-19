@@ -131,18 +131,32 @@ describe("확정 후 당첨자 상태", () => {
 
 describe("경품 목록 변경 내용 나누기", () => {
   // DB 에 경품 두 개가 있다. 「이미 추첨한 경품」이 필요한 사례에서는 경품 1 을 넘긴다.
-  const P1: PrizeRecord = { id: 1, name: "5등 커피", winnerCount: 10, sort: 1 };
-  const P2: PrizeRecord = { id: 2, name: "4등 텀블러", winnerCount: 5, sort: 2 };
+  const P1: PrizeRecord = { id: 1, name: "5등 커피", winnerCount: 10, sort: 1, imageUrl: null };
+  const P2: PrizeRecord = { id: 2, name: "4등 텀블러", winnerCount: 5, sort: 2, imageUrl: null };
   const current = [P1, P2];
 
   describe("정상적으로 나뉘는 경우", () => {
     it("번호 없는 새 경품을 보내면 「추가」 묶음에 들어간다", () => {
       const result = splitPrizeChanges(current, [P1, P2, { name: "2등 태블릿", winnerCount: 1, sort: 3 }], []);
       expect(result).toEqual({
-        toInsert: [{ name: "2등 태블릿", winnerCount: 1, sort: 3 }],
+        toInsert: [{ name: "2등 태블릿", winnerCount: 1, sort: 3, imageUrl: null }],
         toUpdate: [],
         toDelete: [],
       });
+    });
+
+    it("사진 주소는 앞뒤 공백을 지우고 저장하고, 비우면 null 이다 (D-21)", () => {
+      const withImage = { ...P2, imageUrl: " https://example.com/airpods.png " };
+      expect(splitPrizeChanges(current, [P1, withImage], []).toUpdate).toEqual([
+        { ...P2, imageUrl: "https://example.com/airpods.png" },
+      ]);
+      expect(splitPrizeChanges(current, [P1, { ...P2, imageUrl: "" }], [])).toEqual({ toInsert: [], toUpdate: [], toDelete: [] });
+    });
+
+    it("사진 주소를 빼고 보내면 「없음」으로 본다 (예전 콘솔이 보내는 모양)", () => {
+      const { imageUrl: _omit, ...withoutImage } = P2;
+      void _omit;
+      expect(splitPrizeChanges(current, [P1, withoutImage], [])).toEqual({ toInsert: [], toUpdate: [], toDelete: [] });
     });
 
     it("아직 추첨하지 않은 경품의 이름을 바꾸면 「수정」 묶음에 들어간다", () => {
@@ -203,9 +217,20 @@ describe("경품 목록 변경 내용 나누기", () => {
       expect(() => splitPrizeChanges(current, [P1, { ...P2, sort: "1" }], [])).toThrow("INVALID_BODY");
     });
 
+    it.each(["ftp://x/y.png", "example.com/a.png", "javascript:alert(1)"])(
+      "사진 주소가 %j 처럼 http(s) 로 시작하지 않으면 INVALID_IMAGE_URL",
+      (imageUrl) => {
+        expect(() => splitPrizeChanges(current, [P1, { ...P2, imageUrl }], [])).toThrow("INVALID_IMAGE_URL");
+      },
+    );
+
+    it("사진 주소가 문자열이 아니면 INVALID_BODY", () => {
+      expect(() => splitPrizeChanges(current, [P1, { ...P2, imageUrl: 123 }], [])).toThrow("INVALID_BODY");
+    });
+
     it("등급(rank)을 보내도 저장 내용에 넣지 않는다 (DB 에 없는 열)", () => {
       const result = splitPrizeChanges(current, [P1, P2, { rank: 2, name: "2등 태블릿", winnerCount: 1, sort: 3 }], []);
-      expect(result.toInsert).toEqual([{ name: "2등 태블릿", winnerCount: 1, sort: 3 }]);
+      expect(result.toInsert).toEqual([{ name: "2등 태블릿", winnerCount: 1, sort: 3, imageUrl: null }]);
     });
 
     it("DB 에 없는 경품 번호를 보내면 INVALID_BODY", () => {

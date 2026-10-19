@@ -79,8 +79,20 @@ export function confirmedWinners(winners: WinnerRow[]): WinnerRow[] {
 
 // 경품 한 줄 (API 이름, camelCase)
 // 등급은 따로 두지 않고 「5등 커피」처럼 이름에 적는다 (DB 에 rank 열은 없다).
-export type PrizeRecord = { id: number; name: string; winnerCount: number; sort: number };
+// imageUrl 은 발표 화면 경품 소개에 보여 줄 사진 주소. 없으면 null (D-21).
+export type PrizeRecord = { id: number; name: string; winnerCount: number; sort: number; imageUrl: string | null };
 export type NewPrize = Omit<PrizeRecord, "id">;
+
+// 사진 주소는 http(s) 로 시작하는 2000자 이하 문자열만 받는다. 빈 문자열은 「없음」이다.
+const IMAGE_URL_MAX = 2000;
+function parseImageUrl(raw: unknown): string | null {
+  if (raw === undefined || raw === null) return null;
+  if (typeof raw !== "string") throw new Error("INVALID_BODY");
+  const url = raw.trim();
+  if (url === "") return null;
+  if (url.length > IMAGE_URL_MAX || !/^https?:\/\//i.test(url)) throw new Error("INVALID_IMAGE_URL");
+  return url;
+}
 export type PrizeChanges = { toInsert: NewPrize[]; toUpdate: PrizeRecord[]; toDelete: number[] };
 
 // 화면이 보낸 한 줄을 검사해 다듬는다. id 가 없으면 새 줄이다.
@@ -99,11 +111,11 @@ function parsePrizeInput(raw: unknown): NewPrize & { id: number | null } {
     id = r.id as number;
   }
 
-  return { id, name, winnerCount: r.winnerCount as number, sort: r.sort as number };
+  return { id, name, winnerCount: r.winnerCount as number, sort: r.sort as number, imageUrl: parseImageUrl(r.imageUrl) };
 }
 
 const samePrize = (a: NewPrize, b: NewPrize) =>
-  a.name === b.name && a.winnerCount === b.winnerCount && a.sort === b.sort;
+  a.name === b.name && a.winnerCount === b.winnerCount && a.sort === b.sort && (a.imageUrl ?? null) === (b.imageUrl ?? null);
 
 export function splitPrizeChanges(current: PrizeRecord[], submitted: unknown[], drawnPrizeIds: number[]): PrizeChanges {
   const currentById = new Map(current.map((p) => [p.id, p]));

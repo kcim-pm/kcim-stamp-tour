@@ -1,45 +1,53 @@
 "use client";
 
-// 추첨·발표 화면 본체 (클라이언트). spec 3.4, A-09~A-18, A-24~A-26, D-10, D-18, D-19
-// 경품 목록 순서대로 한 경품씩: 준비 → 추첨 중 → 결과(임시) → (부재자 재추첨) → 확정 → [다음 경품 →]
+// 추첨·발표 화면 본체 (클라이언트). spec 3.4, A-09~A-18, A-24~A-26, D-10, D-18, D-19, D-20, D-21
+// 경품 목록 순서대로 한 경품씩: 경품 소개(준비) → 추첨 중 → 결과 확인(임시) → (부재자 재추첨) → 확정 → [→ 다음 경품]
 //
 // 가장 중요한 원칙: 「지금 어느 단계인가」를 따로 저장하지 않고 서버에서 받은 회차 목록을 보고 매번 계산한다.
 // 그래야 창을 닫았다 다시 열거나 새로고침해도 같은 단계로 돌아온다 (spec 3.4, D-10).
-// 화면에만 기억하는 것은 「방금 확정한 회차」, 보고 있는 이전 회차, 고른 번호, 준비 입력값, 연출 상태뿐이다.
+// 화면에만 기억하는 것은 「방금 확정한 회차」, 보고 있는 이전 회차, 고른 번호, 준비 입력값, 연출 상태, 패널 열림뿐이다.
+//
+// 화면에 입력 버튼 없이 키보드로만 조작한다. 
+// 동작 방법은 lib/draw-keys.ts 가 정한다. 
+// Tab 으로 여는 운영자 패널에 단계·후보 수·입력란·단축키 표가 있다.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { adminFetch, errorMessage } from "@/lib/admin-fetch";
 import type { DrawResponse, PrizeResponse } from "@/lib/admin-query";
+import { isActionAllowed, keyToAction, type DrawAction, type DrawPhase, type KeyContext } from "@/lib/draw-keys";
 import { currentPrize } from "@/lib/draw-state";
-import { WinnerGrid } from "./winner-grid";
+import { OperatorPanel } from "./operator-panel";
+import { PrizeIntro, PrizeTitle } from "./prize-title";
+import { Reel } from "./reel";
+import { WinnerNumbers } from "./winner-numbers";
 import { WinnersPanel } from "./winners-panel";
 
 type DrawsResponse = { draws: DrawResponse[]; candidateCount: number; completedCount: number };
-type Phase = "drawing" | "result" | "confirmed" | "done" | "ready";
 
-// 연출 시간. 결과는 서버가 이미 정했고 연출은 그것을 보여 줄 뿐이다 (A-14, 방식은 미정이라 최소 구현).
-const SHUFFLE_MS = 3000;
+// 연출 시간. 결과는 서버가 이미 정했고 릴은 그것을 보여 줄 뿐이다 (A-14).
+const SPIN_MS = 3000;
 const HIGHLIGHT_MS = 2500;
+const TICK_MS = 120;
 
 export function DrawScreen() {
   const [prizes, setPrizes] = useState<PrizeResponse[] | null>(null);
   const [drawData, setDrawData] = useState<DrawsResponse | null>(null);
 
-  // 확정하는 순간 지금 차례가 다음 경품으로 넘어간다. 기억하지 않으면 관객이 확정 번호를 볼 시간 없이 다음 준비 화면이 뜬다.
+  // 확정하는 순간 지금 차례가 다음 경품으로 넘어간다. 기억하지 않으면 관객이 확정 번호를 볼 시간 없이 다음 소개 화면이 뜬다.
   const [justConfirmedId, setJustConfirmedId] = useState<number | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
   const [viewingId, setViewingId] = useState<number | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [highlighted, setHighlighted] = useState<Set<number>>(new Set());
+  const [fresh, setFresh] = useState<Set<number>>(new Set());
   const [excludePrevious, setExcludePrevious] = useState(true);
   const [countInput, setCountInput] = useState("");
   const [animating, setAnimating] = useState(false);
   const [paused, setPaused] = useState(false);
-  const [shuffleNo, setShuffleNo] = useState(0);
-  // 요청 중에는 모든 조작 버튼을 막는다. 두 번 눌러 회차가 두 개 생기는 것을 막기 위해서다.
+  // 요청 중에는 모든 키를 막는다. 두 번 눌러 회차가 두 개 생기는 것을 막기 위해서다.
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const remainingMs = useRef(SHUFFLE_MS);
+  const remainingMs = useRef(SPIN_MS);
   const sound = useSound();
 
   // 처음 열 때, 그리고 조작이 실패했을 때 두 API 를 함께 다시 부른다.
@@ -67,9 +75,9 @@ export function DrawScreen() {
   const viewing = draws.find((d) => d.id === viewingId) ?? null;
   const confirmedDraws = draws.filter((d) => d.status === "confirmed");
 
-  // 마지막 경품을 확정하면(current 가 없음) 확정 격자를 건너뛰고 바로 종료 화면으로 간다.
-  // 마지막 당첨 번호는 오른쪽 「당첨 현황」과 [이전 결과]에서 볼 수 있다.
-  let phase: Phase;
+  // 마지막 경품을 확정하면(current 가 없음) 확정 화면을 건너뛰고 바로 종료 화면으로 간다.
+  // 마지막 당첨 번호는 오른쪽 「당첨 현황」과 이전 결과(H)에서 볼 수 있다.
+  let phase: DrawPhase;
   if (pendingDraw && animating) phase = "drawing";
   else if (pendingDraw) phase = "result";
   else if (justConfirmed && current) phase = "confirmed";
@@ -84,21 +92,18 @@ export function DrawScreen() {
   }, [currentId, currentCount]);
 
   // ── 연출 ───────────────────────────────────────────
-  // [일시정지]는 타이머를 멈추고, 다시 누르면 남은 시간부터 이어 간다.
+  // P 는 타이머와 릴을 멈추고, 다시 누르면 남은 시간부터 이어 간다.
   // 연출 중인지는 화면에만 기억하므로 도중에 새로고침하면 연출 없이 결과(임시) 단계가 나온다.
   useEffect(() => {
     if (!animating || paused) return;
     const startedAt = Date.now();
-    const flicker = setInterval(() => {
-      setShuffleNo(1 + Math.floor(Math.random() * 999));
-      sound.tick();
-    }, 80);
+    const ticker = setInterval(() => sound.tick(), TICK_MS);
     const end = setTimeout(() => {
       setAnimating(false);
       sound.chime();
     }, remainingMs.current);
     return () => {
-      clearInterval(flicker);
+      clearInterval(ticker);
       clearTimeout(end);
       remainingMs.current = Math.max(0, remainingMs.current - (Date.now() - startedAt));
     };
@@ -125,9 +130,10 @@ export function DrawScreen() {
     const count = Number(countInput);
     if (!/^\d+$/.test(countInput.trim()) || count < 1) {
       setError(errorMessage("INVALID_WINNER_COUNT"));
+      setPanelOpen(true);
       return;
     }
-    sound.unlock();
+    setPanelOpen(false);
     run(
       () =>
         adminFetch<DrawResponse>("/api/admin/draws", {
@@ -137,7 +143,7 @@ export function DrawScreen() {
       (draw) => {
         replaceDraw(draw);
         setSelected(new Set());
-        remainingMs.current = SHUFFLE_MS;
+        remainingMs.current = SPIN_MS;
         setPaused(false);
         setAnimating(true);
       },
@@ -166,8 +172,8 @@ export function DrawScreen() {
         replaceDraw(draw);
         setSelected(new Set());
         // 새로 뽑힌 번호는 잠깐 강조한다.
-        setHighlighted(new Set(draw.winners.map((w) => w.participantNo).filter((no) => !before.has(no))));
-        setTimeout(() => setHighlighted(new Set()), HIGHLIGHT_MS);
+        setFresh(new Set(draw.winners.map((w) => w.participantNo).filter((no) => !before.has(no))));
+        setTimeout(() => setFresh(new Set()), HIGHLIGHT_MS);
       },
     );
   }
@@ -184,163 +190,155 @@ export function DrawScreen() {
     );
   }
 
+  function nextPrize() {
+    setJustConfirmedId(null);
+  }
+
+  function escape() {
+    if (historyOpen) setHistoryOpen(false);
+    else if (panelOpen) setPanelOpen(false);
+    else if (selected.size > 0) setSelected(new Set());
+  }
+
+  // ── 키보드 ─────────────────────────────────────────
+  // 어느 키가 되는지는 lib/draw-keys.ts 의 규칙이다. 입력란에 글자를 치는 중에는 패널과 닫기만 먹는다.
+  const keyContext = (typing: boolean): KeyContext => ({
+    phase,
+    busy,
+    selectedCount: selected.size,
+    hasHistory: confirmedDraws.length > 0,
+    typing,
+  });
+  const allowed = (action: DrawAction) => isActionAllowed(action, keyContext(false));
+
+  const actions = useRef<Record<DrawAction, () => void>>(null!);
+  actions.current = {
+    start: startDraw,
+    confirm: confirmDraw,
+    redraw,
+    pause: () => setPaused((p) => !p),
+    next: nextPrize,
+    history: () => setHistoryOpen((o) => !o),
+    panel: () => setPanelOpen((o) => !o),
+    escape,
+  };
+  const contextRef = useRef(keyContext);
+  contextRef.current = keyContext;
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const action = keyToAction(e.key);
+      if (!action) return;
+      const target = e.target as HTMLElement | null;
+      const typing = !!target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA");
+      // Space 와 Tab 은 브라우저 기본 동작(스크롤, 초점 이동)이 있어 항상 막는다. 입력란 안의 Space 는 글자 입력이므로 둔다.
+      if (e.key === "Tab" || (e.key === " " && !typing)) e.preventDefault();
+      if (!isActionAllowed(action, contextRef.current(typing))) return;
+      // 브라우저는 사용자가 누르기 전에는 소리를 막으므로 첫 키 입력에서 푼다.
+      sound.unlock();
+      actions.current[action]();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [sound]);
+
   // ── 화면 ───────────────────────────────────────────
   if (!prizes || !drawData) {
     return (
-      <main className="draw-screen" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <main className="draw-screen" style={{ alignItems: "center", justifyContent: "center" }}>
         <div className="draw-big">{error ?? "불러오는 중…"}</div>
       </main>
     );
   }
 
   const shownDraw = phase === "drawing" || phase === "result" ? pendingDraw : phase === "confirmed" ? justConfirmed : null;
-  const shownPrize = shownDraw?.prize ?? (phase === "ready" ? current : null);
-  const shownCount = shownDraw?.winnerCount ?? (phase === "ready" ? countInput : null);
+  const shownPrize = shownDraw?.prize ?? current;
+  const shownCount = shownDraw?.winnerCount ?? countInput;
   const candidateCount = excludePrevious ? drawData.candidateCount : drawData.completedCount;
+  const nos = (d: DrawResponse, status: "pending" | "confirmed") =>
+    d.winners.filter((w) => w.status === status).map((w) => w.participantNo);
 
   return (
     <main className="draw-screen">
-      <div className="draw-main">
-        <div className="draw-header">KCIM BIMlize Con 2026 · LUCKY DRAW</div>
+      <div className="draw-header">KCIM BIMlize Con 2026 · LUCKY DRAW</div>
 
-        {/* 종료 화면에서는 경품 이름 줄을 감춰 가운데 종료 문구만 남긴다. */}
-        {phase !== "done" && (
-          <div className="draw-prize">
-            <div>
-              <div className="draw-prize-name">{shownPrize ? shownPrize.name : "경품 추첨"}</div>
-            </div>
-            {shownCount !== null && <div className="draw-prize-count">{shownCount}명 추첨</div>}
-          </div>
-        )}
-
+      <div className="draw-body">
         <div className="draw-stage">
-          {phase === "ready" && (
-            <div className="draw-setup">
-              <div>
-                추첨 후보 <span className="draw-big">{candidateCount}</span>명
-              </div>
-              <label className="switch">
-                <input
-                  type="checkbox"
-                  checked={excludePrevious}
-                  disabled={busy}
-                  onChange={(e) => setExcludePrevious(e.target.checked)}
-                />
-                <span className="switch-track" />
-                이전 당첨자 제외
-              </label>
-              <label>
-                당첨 인원{" "}
-                <input
-                  type="number"
-                  min={1}
-                  value={countInput}
-                  disabled={busy}
-                  onChange={(e) => setCountInput(e.target.value)}
-                />{" "}
-                명
-              </label>
-              <div className="draw-note">아래 [추첨 시작]을 누르세요</div>
-            </div>
-          )}
+          {phase === "ready" && shownPrize && <PrizeIntro prize={shownPrize} count={shownCount} />}
 
-          {phase === "drawing" && (
+          {(phase === "drawing" || phase === "result" || phase === "confirmed") && shownPrize && (
             <>
-              <div className="draw-shuffle" key={shuffleNo}>
-                {shuffleNo || "?"}
-              </div>
-              {paused && <div className="draw-note">일시정지</div>}
-            </>
-          )}
-
-          {phase === "result" && pendingDraw && (
-            <>
-              <WinnerGrid
-                mode="select"
-                draw={pendingDraw}
-                selected={selected}
-                highlighted={highlighted}
-                disabled={busy}
-                onToggle={toggleSelect}
-              />
-              <div className="draw-note">
-                부재자가 있으면 해당 번호를 모두 선택한 뒤 [선택 번호 재추첨]을 눌러주세요
-              </div>
-              <div className="draw-actions">
-                <button className="btn-ghost btn-primary" disabled={busy} onClick={confirmDraw}>
-                  ✓ 당첨 확정
-                </button>
-                <button className="btn-ghost btn-danger" disabled={busy || selected.size === 0} onClick={redraw}>
-                  선택 번호 재추첨{selected.size > 0 && ` (${selected.size})`}
-                </button>
+              <PrizeTitle prize={shownPrize} count={shownCount} />
+              <div className="draw-stage__body">
+                {phase === "drawing" && <Reel paused={paused} />}
+                {/* 결과(임시)와 확정은 같은 컴포넌트 자리에 둔다. 확정할 때 추가 모션 없이 우측 당첨 현황에 번호만 추가된다. */}
+                {(phase === "result" || phase === "confirmed") && shownDraw && (
+                  <WinnerNumbers
+                    nos={nos(shownDraw, phase === "result" ? "pending" : "confirmed")}
+                    selected={phase === "result" ? selected : undefined}
+                    fresh={phase === "result" ? fresh : undefined}
+                    disabled={phase !== "result" || busy}
+                    onToggle={phase === "result" ? toggleSelect : undefined}
+                  />
+                )}
               </div>
             </>
           )}
 
-          {phase === "confirmed" && justConfirmed && <WinnerGrid mode="confirmed" draw={justConfirmed} />}
+          {phase === "done" && (prizes.length === 0 ? <div className="draw-big">등록된 경품이 없습니다</div> : <FinishScreen />)}
 
-          {phase === "done" &&
-            (prizes.length === 0 ? (
-              <div className="draw-big">등록된 경품이 없습니다</div>
-            ) : (
-              <FinishScreen />
-            ))}
+          {error && <div className="draw-error">{error}</div>}
         </div>
 
-        {error && <div className="draw-error">{error}</div>}
-
-        {/* 버튼 위치는 단계와 상관없이 고정한다. 위치가 바뀌면 무대 옆의 운영자가 헷갈린다. */}
-        <div className="draw-controls">
-          <button className="btn-ghost" disabled={phase !== "drawing"} onClick={() => setPaused((p) => !p)}>
-            {paused ? "계속" : "일시정지"}
-          </button>
-          <button className="btn-ghost btn-primary" disabled={phase !== "ready" || busy} onClick={startDraw}>
-            추첨 시작
-          </button>
-          <button className="btn-ghost" disabled={confirmedDraws.length === 0 || busy} onClick={() => setHistoryOpen(true)}>
-            이전 결과
-          </button>
-          <button
-            className="btn-ghost"
-            disabled={phase !== "confirmed" || !current || busy}
-            onClick={() => setJustConfirmedId(null)}
-          >
-            다음 경품 →
-          </button>
-        </div>
+        <WinnersPanel prizes={prizes} draws={draws} currentPrizeId={phase === "done" ? null : (shownPrize?.id ?? null)} />
       </div>
 
-      <WinnersPanel prizes={prizes} draws={draws} />
+      {panelOpen && (
+        <OperatorPanel
+          phase={phase}
+          paused={paused}
+          candidateCount={candidateCount}
+          excludePrevious={excludePrevious}
+          onExcludePrevious={setExcludePrevious}
+          countInput={countInput}
+          onCountInput={setCountInput}
+          canEdit={phase === "ready" && !busy}
+          allowed={allowed}
+          onClose={() => setPanelOpen(false)}
+        />
+      )}
 
       {historyOpen && (
-        <div className="overlay" onClick={() => setHistoryOpen(false)}>
-          <div className="overlay-box" onClick={(e) => e.stopPropagation()}>
-            <div className="console-row" style={{ justifyContent: "space-between" }}>
-              <div className="history-list">
-                {confirmedDraws.map((d) => (
-                  <button
-                    key={d.id}
-                    className={`btn-ghost${d.id === viewingId ? " btn-primary" : ""}`}
-                    onClick={() => setViewingId(d.id)}
-                  >
-                    {d.prize.name}
-                  </button>
-                ))}
-              </div>
-              <button className="btn-ghost" onClick={() => setHistoryOpen(false)}>
-                닫기
+        <section className="history" aria-label="이전 결과">
+          <div className="history__head">
+            <h2>이전 결과</h2>
+            <div className="history-list">
+              {confirmedDraws.map((d) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  className={`btn-ghost${d.id === viewingId ? " btn-primary" : ""}`}
+                  onClick={() => setViewingId(d.id)}
+                >
+                  {d.prize.name}
+                </button>
+              ))}
+              <button type="button" className="btn-ghost" onClick={() => setHistoryOpen(false)}>
+                닫기 (H)
               </button>
             </div>
-            {viewing ? (
-              <>
-                <div className="draw-prize-name">{viewing.prize.name}</div>
-                <WinnerGrid mode="confirmed" draw={viewing} />
-              </>
-            ) : (
-              <div className="draw-note">볼 경품을 고르세요</div>
-            )}
           </div>
-        </div>
+          {viewing ? (
+            <>
+              <PrizeTitle prize={viewing.prize} count={viewing.winnerCount} />
+              <div className="draw-stage__body">
+                <WinnerNumbers nos={nos(viewing, "confirmed")} />
+              </div>
+            </>
+          ) : (
+            <div className="draw-note">볼 경품을 고르세요</div>
+          )}
+        </section>
       )}
     </main>
   );
@@ -389,8 +387,7 @@ function FinishScreen() {
   );
 }
 
-// 효과음. 연출 방식이 정해지면 public/sounds/ 의 파일로 바꾼다. 지금은 브라우저에서 짧은 소리를 만든다.
-// 브라우저는 사용자가 누르기 전에는 소리를 막으므로 [추첨 시작]을 누를 때 unlock 한다.
+// 효과음. 브라우저에서 짧은 소리를 만든다. 브라우저는 사용자가 누르기 전에는 소리를 막으므로 첫 키 입력에서 unlock 한다.
 function useSound() {
   const ctx = useRef<AudioContext | null>(null);
 
