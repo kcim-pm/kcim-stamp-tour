@@ -243,7 +243,7 @@ create table prizes (                  -- 경품 목록. D-13 확정 후 seed.sq
   name          text not null,
   winner_count  smallint not null check (winner_count > 0),
   sort          smallint not null,     -- 추첨 순서. 콘솔 표의 줄 순서로 매긴다(3.3)
-  image_url     text                   -- 경품 사진 주소. 발표 화면 경품 소개에 보인다. 없으면 null (D-21, 0002_prize_image.sql)
+  image_url     text                   -- 경품 사진 주소. 발표 화면 경품 소개에 보인다. 없으면 null (D-21). 운영 DB 에는 10/19 에 alter table 로 추가했다
 );
 
 create table draws (
@@ -678,4 +678,4 @@ Route Handler와 화면은 단위 테스트 대상이 아니다. 8.2의 수동 �
 | 2026-10-15 | 발표 화면 「종료」 단계 추가: 마지막 경품을 확정하면 당첨 번호 격자 대신 트로피·색종이가 있는 종료 화면만 보인다(3.4 단계 표·동작 규칙, 8.2) |
 | 2026-10-15 | 경품 순서를 숫자 입력 대신 표의 줄 순서([↑][↓])로 정한다. 저장할 때 `sort`를 자동으로 매기고, 추첨한 경품은 맨 위에 고정(3.3). 4장 `rank` 주석의 「숫자가 클수록 먼저 추첨」을 바로잡음: 추첨 차례는 `sort`만 정한다 |
 | 2026-10-16 | 이용 매뉴얼 추가(3.7): 참가자·운영자 가이드와 자주 묻는 질문, 화면 이미지. `/manual` 우선순위를 필수로. 7.6에 `public/manual/`, `scripts/` 추가 |
-| 2026-10-19 | 발표 화면을 키보드 조작으로 바꿈(D-20): 하단 버튼·준비 입력란·안내문 삭제, 운영자 패널(Tab)과 단축키 표 신설, A-09·A-11·A-17·A-24·A-25·A-26 문구 수정. 추첨 연출을 숫자 릴로 확정(A-14), 당첨 번호를 상자 없이 인원별 크기로(A-15, 「당첨 번호 배치」). 경품 사진 주소 추가(D-21): A-12, 4장 `prizes.image_url`(`0002_prize_image.sql`), 5.3 prizes·draws 응답 `imageUrl`, 400 `INVALID_IMAGE_URL`. 7.6에 `prize-title.tsx`·`reel.tsx`·`winner-numbers.tsx`·`operator-panel.tsx` 추가, `winner-grid.tsx` 삭제. 8.1에 `lib/draw-keys.ts`·`lib/winner-layout.ts` 추가 |
+| 2026-10-19 | 발표 화면을 키보드 조작으로 바꿈(D-20): 하단 버튼·준비 입력란·안내문 삭제, 운영자 패널(Tab)과 단축키 표 신설, A-09·A-11·A-17·A-24·A-25·A-26 문구 수정. 추첨 연출을 숫자 릴로 확정(A-14), 당첨 번호를 상자 없이 인원별 크기로(A-15, 「당첨 번호 배치」). 경품 사진 주소 추가(D-21): A-12, 4장 `prizes.image_url`(운영 DB 에는 SQL Editor 에서 `alter table prizes add column image_url text` 실행, 별도 마이그레이션 파일 없음), 5.3 prizes·draws 응답 `imageUrl`, 400 `INVALID_IMAGE_URL`. 7.6에 `prize-title.tsx`·`reel.tsx`·`winner-numbers.tsx`·`operator-panel.tsx` 추가, `winner-grid.tsx` 삭제. 8.1에 `lib/draw-keys.ts`·`lib/winner-layout.ts` 추가 |
