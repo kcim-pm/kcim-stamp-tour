@@ -31,7 +31,7 @@ export default async function QrPage() {
       svg: await QRCode.toString(`${siteUrl}/?z=${z.qr_token}`, {
         type: "svg",
         margin: 1,
-        color: { dark: "#2b2550", light: "#ffffff" },
+        color: { dark: "#193D52", light: "#ffffff" },
       }),
     })),
   );

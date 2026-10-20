@@ -47,6 +47,14 @@ export function ParticipantScreen({ zone, zoneToken }: { zone: ZoneResult; zoneT
   const [status, setStatus] = useState<ParticipantStatus | null>(null);
   const [banner, setBanner] = useState<Banner | null>(null);
   const [busy, setBusy] = useState(false);
+  // 머리글은 처음부터 맨 위에 붙어 있으므로, 조금이라도 스크롤했을 때를 「고정된 상태」로 보고 그림자를 켠다.
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 0);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
   // 처음 열 때: 저장된 번호가 있으면 입력란에 채우고 현황을 조용히 불러온다 (P-04, P-09)
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -115,7 +123,7 @@ export function ParticipantScreen({ zone, zoneToken }: { zone: ZoneResult; zoneT
   return (
     <main className="screen">
       {/* 1 머리글 */}
-      <header className="header">
+      <header className={`header header-sticky${scrolled ? " is-stuck" : ""}`}>
         <a href="/" className="header-title">
           BIMlize Con 2026 <em>스탬프 투어</em>
         </a>
@@ -278,10 +286,10 @@ function StampTrack({ zones }: { zones: ZoneStatus[] }) {
   return (
     <div className="track" aria-label={`${visitedCount}곳 인증 완료`}>
       <svg viewBox="0 0 318 214" fill="none" aria-hidden="true">
-        <path d={TRACK_PATH} stroke="#d9d1ff" strokeWidth="14" strokeLinecap="round" />
+        <path d={TRACK_PATH} stroke="#d4ecf5" strokeWidth="14" strokeLinecap="round" />
         <path d={TRACK_PATH} stroke="#ffffff" strokeWidth="6" strokeLinecap="round" />
         {streak > 0 && (
-          <path className="trail" d={TRAIL_BY_COUNT[streak]} stroke="#6c4dff" strokeWidth="4" strokeLinecap="round" />
+          <path className="trail" d={TRAIL_BY_COUNT[streak]} stroke="#00A8C0" strokeWidth="4" strokeLinecap="round" />
         )}
       </svg>
       {coins}
@@ -292,7 +300,7 @@ function StampTrack({ zones }: { zones: ZoneStatus[] }) {
 function Confetti() {
   const pieces = [
     { left: "10%", bottom: "10%", bg: "#ff4d86", delay: "0s" },
-    { left: "26%", bottom: "6%", bg: "#6c4dff", delay: "0.5s" },
+    { left: "26%", bottom: "6%", bg: "#00A8C0", delay: "0.5s" },
     { left: "50%", bottom: "8%", bg: "#3fb9ff", delay: "1s" },
     { left: "72%", bottom: "4%", bg: "#ffab2e", delay: "0.3s" },
     { left: "88%", bottom: "12%", bg: "#4dd98a", delay: "1.4s" },

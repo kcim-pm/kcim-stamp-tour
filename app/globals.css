@@ -1,19 +1,25 @@
 /* 전역 스타일. 디자인 캔버스 「E 최종」 기준. app/layout.tsx 에서 한 번만 불러온다. */
 
 :root {
-  --ink: #2b2550;
-  --ink-soft: #5a5380;
-  --muted: #7a72a8;
-  --muted-2: #9a93c4;
-  --line: #dcd6f7;
-  --accent: #6c4dff;
-  --accent-soft: #efebff;
-  --accent-deep: #4b2fd1;
+  /* 브랜드 색. 메인은 kcim-navy, 서브는 kcim-sky·kcim-teal */
+  --kcim-navy: #193D52;
+  --kcim-sky: #8CCEE7;
+  --kcim-teal: #00A8C0;
+  --ink: var(--kcim-navy);
+  --ink-soft: #4a6274;
+  --muted: #6b8090;
+  --muted-2: #94a3ae;
+  --line: #d5e2e9;
+  --accent: var(--kcim-navy);
+  --accent-soft: #e6f4fa;
+  --accent-deep: #0f2838;
+  --point: var(--kcim-teal);
+  --grid-line: #e9ecef;
   --green: #1f9d5e;
   --green-bg: #e6f8ee;
   --green-line: #b8e8cc;
   --green-ink: #0f5c36;
-  --gray-bg: #f2efff;
+  --gray-bg: #f0f5f8;
   --red: #c2235d;
   --red-bg: #fff0f4;
   --red-line: #ffc2d4;
@@ -24,8 +30,7 @@
 body {
   margin: 0;
   color: var(--ink);
-  background: linear-gradient(180deg, #e9e4ff 0%, #f6f1ff 50%, #ffe9f2 100%);
-  background-attachment: fixed;
+  background: #fff;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -61,10 +66,26 @@ button, input { font-family: inherit; }
   padding: 6px 4px;
 }
 .header-title { font-size: 17px; font-weight: 900; letter-spacing: -0.2px; }
-.header-title em { font-style: normal; color: var(--accent); }
+.header-title em { font-style: normal; color: var(--point); }
 .header a { font-size: 13px; font-weight: 700; text-decoration: none; }
 /* 제목이 링크일 때도 제목 모양을 유지한다 */
 .header a.header-title { font-size: 17px; font-weight: 900; color: inherit; }
+/* 참가자 화면 머리글. 스크롤해도 위에 붙어 있고, 뒤로 지나가는 카드가 흐리게 비친다(glass).
+   매뉴얼 화면은 탭 막대가 위에 붙으므로 이 클래스를 쓰지 않는다. */
+.header-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  /* .screen 의 여백(16px)을 상쇄해 화면 위쪽과 양옆 끝까지 붙인다 */
+  margin: -16px -16px 0;
+  padding: 12px 20px;
+  background: rgba(255, 255, 255, 0.55);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  backdrop-filter: blur(12px) saturate(160%);
+  transition: box-shadow 0.2s;
+}
+/* 스크롤해서 내용이 머리글 뒤로 지나갈 때만 그림자를 준다 */
+.header-sticky.is-stuck { box-shadow: 0 4px 16px rgba(25, 61, 82, 0.08); }
 
 .card {
   background: #fff;
@@ -153,7 +174,7 @@ button, input { font-family: inherit; }
 .status-head { display: flex; justify-content: space-between; align-items: baseline; }
 .status-title { font-size: 16px; font-weight: 700; }
 .status-title span { color: var(--muted-2); font-weight: 500; }
-.status-count { font-size: 24px; font-weight: 900; color: var(--accent); }
+.status-count { font-size: 24px; font-weight: 900; color: var(--point); }
 .status-count span { font-size: 13px; color: var(--muted-2); font-weight: 500; }
 
 /* 경로형 스탬프 (구역 5곳 기준 좌표) */
@@ -177,33 +198,33 @@ button, input { font-family: inherit; }
 .coin-done { color: #fff; animation: drop 0.9s cubic-bezier(0.2, 0.9, 0.2, 1.2) both; }
 .coin-wait {
   background: var(--gray-bg);
-  color: #a89fd6;
-  box-shadow: inset 4px 4px 8px rgba(108, 77, 255, 0.12), inset -4px -4px 8px #fff;
+  color: #9bb4c2;
+  box-shadow: inset 4px 4px 8px rgba(25, 61, 82, 0.1), inset -4px -4px 8px #fff;
 }
 .c1 { background: linear-gradient(145deg, #ff8fb1, #ff4d86); box-shadow: inset 3px 3px 6px rgba(255,255,255,0.6), inset -4px -6px 8px rgba(0,0,0,0.15), 0 8px 0 #c2235d, 0 16px 20px rgba(194,35,93,0.35); }
 .c2 { background: linear-gradient(145deg, #ffd36e, #ffab2e); box-shadow: inset 3px 3px 6px rgba(255,255,255,0.6), inset -4px -6px 8px rgba(0,0,0,0.15), 0 8px 0 #c97400, 0 16px 20px rgba(201,116,0,0.35); }
 .c3 { background: linear-gradient(145deg, #8fe3ff, #3fb9ff); box-shadow: inset 3px 3px 6px rgba(255,255,255,0.6), inset -4px -6px 8px rgba(0,0,0,0.15), 0 8px 0 #1576c4, 0 16px 20px rgba(21,118,196,0.35); }
 .c4 { background: linear-gradient(145deg, #b5f5c8, #4dd98a); box-shadow: inset 3px 3px 6px rgba(255,255,255,0.6), inset -4px -6px 8px rgba(0,0,0,0.15), 0 8px 0 #1f9d5e, 0 16px 20px rgba(31,157,94,0.35); }
-.c5 { background: linear-gradient(145deg, #c9b8ff, #8e7cff); box-shadow: inset 3px 3px 6px rgba(255,255,255,0.6), inset -4px -6px 8px rgba(0,0,0,0.15), 0 8px 0 #4b2fd1, 0 16px 20px rgba(75,47,209,0.35); }
+.c5 { background: linear-gradient(145deg, #6fd8e6, #00a8c0); box-shadow: inset 3px 3px 6px rgba(255,255,255,0.6), inset -4px -6px 8px rgba(0,0,0,0.15), 0 8px 0 #00788a, 0 16px 20px rgba(0,120,138,0.35); }
 
 /* 구역이 5곳이 아닐 때의 대체 배치 */
 .coin-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; padding: 10px 0; }
 .coin-row .coin { position: static; }
 
-/* 완주 배너 (입체) */
+/* 완주 배너 (평면). 바탕은 kcim-sky 20% 틴트 */
 .clay {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(180deg, #fff 0%, #f4efff 100%);
+  background: color-mix(in srgb, var(--kcim-sky) 50%, #fff);
+  /* background: #fff; */
+  /* border: 1px solid var(--line); */
   border-radius: 28px;
   padding: 30px 20px 28px;
-  margin-bottom: 18px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
   text-align: center;
-  box-shadow: inset 6px 6px 14px rgba(255,255,255,0.95), inset -8px -10px 18px rgba(108,77,255,0.14), 0 18px 0 #d9d1ff, 0 30px 40px rgba(108,77,255,0.25);
   animation: rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 .confetti { position: absolute; width: 10px; height: 14px; border-radius: 2px; animation: floatUp 2.6s ease-out infinite; }
@@ -211,7 +232,7 @@ button, input { font-family: inherit; }
 .trophy-lottie { width: 170px; height: 170px; margin: -12px 0 -16px; }
 .win-title { font-size: 24px; font-weight: 900; margin-top: 12px; }
 .win-label { font-size: 12px; color: var(--muted-2); margin-top: 6px; }
-.win-no { font-size: 76px; font-weight: 900; line-height: 1; letter-spacing: -1px; color: var(--accent); animation: pop 0.9s 0.6s cubic-bezier(0.2, 0.9, 0.2, 1.3) both; }
+.win-no { font-size: 76px; font-weight: 900; line-height: 1; letter-spacing: -1px; color: var(--kcim-navy); animation: pop 0.9s 0.6s cubic-bezier(0.2, 0.9, 0.2, 1.3) both; }
 .win-body { font-size: 14px; color: var(--ink-soft); line-height: 1.5; margin-top: 14px; }
 .win-foot { font-size: 12px; color: var(--muted-2); margin-top: 4px; }
 
@@ -248,6 +269,7 @@ button, input { font-family: inherit; }
 @page { size: A4 portrait; margin: 15mm; }
 @media print {
   body { background: #fff; }
+  body::before { display: none; }
   .qr-page { max-width: none; padding: 0; gap: 0; }
   .no-print { display: none !important; }
   .qr-sheet { border: 0; border-radius: 0; padding: 0; min-height: 250mm; justify-content: center; page-break-after: always; break-after: page; }
@@ -287,7 +309,7 @@ button, input { font-family: inherit; }
 .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
 .switch-track { position: relative; width: 40px; height: 22px; border-radius: 999px; background: var(--line); transition: background 0.2s; flex: none; }
 .switch-track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.2s; }
-.switch input:checked + .switch-track { background: var(--accent); }
+.switch input:checked + .switch-track { background: var(--point); }
 .switch input:checked + .switch-track::after { transform: translateX(18px); }
 .switch input:focus-visible + .switch-track { outline: 2px solid var(--accent-deep); outline-offset: 2px; }
 
@@ -310,7 +332,7 @@ button, input { font-family: inherit; }
 .admin-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .admin-table th { position: sticky; top: 0; z-index: 1; background: var(--accent-soft); color: var(--ink-soft); font-size: 12px; font-weight: 700; padding: 8px 10px; text-align: left; white-space: nowrap; }
 .admin-table td { padding: 7px 10px; border-top: 1px solid var(--line); vertical-align: top; }
-.admin-table tbody tr:nth-child(even) td { background: #faf9ff; }
+.admin-table tbody tr:nth-child(even) td { background: #f7fafc; }
 .admin-table .num { text-align: center; }
 .admin-table .zone-ok { color: var(--green); font-weight: 900; }
 .admin-table .zone-no { color: var(--muted-2); }
@@ -328,11 +350,11 @@ button, input { font-family: inherit; }
   width: 100vw; height: 100vh; overflow: hidden;
   display: flex; flex-direction: column; gap: 2vh; padding: 2.5vh 2vw;
 }
-.draw-header { font-size: clamp(14px, 1.6vw, 24px); font-weight: 900; letter-spacing: 1px; color: var(--accent); }
+.draw-header { font-size: clamp(14px, 1.6vw, 24px); font-weight: 900; letter-spacing: 1px; color: var(--kcim-navy); }
 .draw-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 3fr 1fr; gap: 1.1vw; }
 .draw-stage {
   position: relative; min-height: 0; overflow: hidden;
-  background: rgba(255, 255, 255, 0.75); border: 1px solid var(--line); border-radius: 24px;
+  background: #fff; border: 1px solid var(--line); border-radius: 24px;
   padding: 3.5vh 2.8vw; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 3vh; text-align: center;
 }
 /* 타이틀은 위에 고정하고, 번호와 릴은 남는 공간 한가운데에 놓는다. */
@@ -345,20 +367,20 @@ button, input { font-family: inherit; }
 .prize-intro { flex: 1; min-height: 0; width: 100%; display: flex; align-items: center; gap: 2.8vw; text-align: left; }
 .prize-intro__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2.4vh; }
 .prize-intro__name { margin: 0; font-size: clamp(32px, 5vw, 96px); font-weight: 900; line-height: 1.05; letter-spacing: -0.02em; }
-.prize-intro__count { display: flex; align-items: baseline; gap: 0.6vw; color: var(--accent); font-size: clamp(16px, 1.7vw, 30px); font-weight: 900; }
+.prize-intro__count { display: flex; align-items: baseline; gap: 0.6vw; color: var(--point); font-size: clamp(16px, 1.7vw, 30px); font-weight: 900; }
 .prize-intro__count span { font-size: clamp(32px, 3.4vw, 64px); line-height: 1; }
 .prize-photo {
   flex: none; width: clamp(140px, 28vw, 440px); aspect-ratio: 1; border-radius: 24px; overflow: hidden;
-  background: linear-gradient(180deg, #fff 0%, #f4efff 100%); color: var(--muted-2);
-  box-shadow: inset 6px 6px 14px rgba(255,255,255,0.95), inset -8px -10px 18px rgba(108,77,255,0.14), 0 14px 0 #d9d1ff;
+  background: linear-gradient(180deg, #fff 0%, #eef7fb 100%); color: var(--muted-2);
+  box-shadow: inset 6px 6px 14px rgba(255,255,255,0.95), inset -8px -10px 18px rgba(25,61,82,0.1);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1vh; font-size: clamp(12px, 1.2vw, 18px); font-weight: 700;
 }
 .prize-photo img { width: 100%; height: 100%; object-fit: cover; }
 /* 경품 타이틀 (추첨 중·결과): 같은 내용을 작게, 무대 위쪽 가운데 */
 .prize-title { display: flex; align-items: center; gap: 1.4vw; }
-.prize-title .prize-photo { width: clamp(48px, 5.6vw, 88px); border-radius: 16px; box-shadow: 0 6px 0 #d9d1ff; }
+.prize-title .prize-photo { width: clamp(48px, 5.6vw, 88px); border-radius: 16px; }
 .prize-title__name { margin: 0; font-size: clamp(22px, 2.8vw, 48px); font-weight: 900; line-height: 1.1; }
-.prize-title__count { margin-left: 0.6vw; font-size: clamp(14px, 1.7vw, 30px); font-weight: 900; color: var(--accent); white-space: nowrap; }
+.prize-title__count { margin-left: 0.6vw; font-size: clamp(14px, 1.7vw, 30px); font-weight: 900; color: var(--point); white-space: nowrap; }
 
 /* 숫자 릴 (추첨 중). 띠 하나에 숫자 둘. 위 숫자가 나가는 동안 아래 숫자가 올라온다. */
 .reel { margin: 0; display: inline-flex; gap: 0.3vw; font-size: clamp(100px, 16vw, 300px); font-weight: 900; line-height: 1; letter-spacing: -0.05em; font-variant-numeric: tabular-nums; }
@@ -386,7 +408,7 @@ button, input { font-family: inherit; }
 .winner:active:not(:disabled) { transform: scale(0.97); }
 .winner:focus-visible { outline: 0.04em solid var(--accent); outline-offset: 0.04em; }
 .winner[aria-pressed="true"] { background: #ed5c00; color: #fff; }
-.winner.is-new { color: var(--accent); }
+.winner.is-new { color: var(--point); }
 /* 자릿수마다 0~9 띠를 두고 값(--d)까지 굴러 들어온다. 줄어든 움직임 환경에서는 바로 값으로 선다. */
 .winner__digits { display: inline-flex; }
 .winner__col { display: inline-block; height: 1em; overflow: clip; }
@@ -408,14 +430,14 @@ button, input { font-family: inherit; }
 /* 선물 Lottie 칸. 크기를 고정해 두어 플레이어를 불러오는 동안 글자가 밀리지 않게 한다. */
 .draw-finish__lottie { width: clamp(180px, 22vw, 400px); height: clamp(180px, 22vw, 400px); margin-bottom: -1vh; }
 .draw-finish .confetti { width: clamp(12px, 1.1vw, 20px); height: clamp(16px, 1.5vw, 28px); }
-.draw-finish-label { font-size: clamp(14px, 1.5vw, 26px); font-weight: 900; letter-spacing: 0.3em; color: var(--accent); }
+.draw-finish-label { font-size: clamp(14px, 1.5vw, 26px); font-weight: 900; letter-spacing: 0.3em; color: var(--point); }
 .draw-finish-title {
   font-size: clamp(40px, 6vw, 112px); font-weight: 900; line-height: 1.1;
   animation: pop 0.9s 0.4s cubic-bezier(0.2, 0.9, 0.2, 1.3) both;
 }
 .draw-finish-sub { font-size: clamp(18px, 2vw, 36px); font-weight: 700; color: var(--ink-soft); }
 
-/* 당첨 현황. 1등이 맨 위. 확정 전은 등수·인원만 흐리게, 확정되면 경품 이름까지 진하게 쓰고 번호 칩을 붙인다. 지금 뽑는 경품은 연보라 띠. */
+/* 당첨 현황. 1등이 맨 위. 확정 전은 등수·인원만 흐리게, 확정되면 경품 이름까지 진하게 쓰고 번호 칩을 붙인다. 지금 뽑는 경품은 연하늘색 띠. */
 .winners-panel {
   background: #fff; border: 1px solid var(--line); border-radius: 20px; padding: 2vh 1vw;
   display: flex; flex-direction: column; gap: 1.6vh; min-height: 0; overflow-y: auto;
@@ -432,13 +454,13 @@ button, input { font-family: inherit; }
 /* 운영자 패널(단축키 안내). Tab 으로 아래에서 올라온다. 관객 화면에도 비치므로 필요한 순간에만 연다. */
 .panel {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
-  padding: 1.6vh 2vw 1.8vh; background: rgba(43, 37, 80, 0.95); color: #fff;
+  padding: 1.6vh 2vw 1.8vh; background: rgba(25, 61, 82, 0.95); color: #fff;
   display: flex; flex-direction: column; gap: 1.2vh; font-size: clamp(13px, 1.2vw, 16px); font-weight: 700;
   animation: panel-in 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 @keyframes panel-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
 .panel__row { display: flex; flex-wrap: wrap; align-items: center; gap: 1vh 1.8vw; }
-.panel__tag { background: var(--accent); border-radius: 8px; padding: 3px 10px; font-size: 0.85em; font-weight: 900; letter-spacing: 1px; }
+.panel__tag { background: var(--point); border-radius: 8px; padding: 3px 10px; font-size: 0.85em; font-weight: 900; letter-spacing: 1px; }
 .panel__close { margin-left: auto; padding: 6px 14px; border-radius: 10px; border: 0; background: var(--accent-deep); color: #fff; font-weight: 700; cursor: pointer; }
 .panel__close:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .keys { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.6vw; }

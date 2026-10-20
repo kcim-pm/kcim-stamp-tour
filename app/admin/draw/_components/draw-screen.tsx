@@ -286,12 +286,12 @@ const FinishLottie = dynamic(() => import("@/components/trophy-lottie"), { ssr: 
 
 const FINISH_CONFETTI = [
   { left: "8%", bottom: "12%", bg: "#ff4d86", delay: "0s" },
-  { left: "20%", bottom: "4%", bg: "#6c4dff", delay: "0.6s" },
+  { left: "20%", bottom: "4%", bg: "#00A8C0", delay: "0.6s" },
   { left: "34%", bottom: "10%", bg: "#3fb9ff", delay: "1.2s" },
   { left: "50%", bottom: "2%", bg: "#ffab2e", delay: "0.3s" },
   { left: "66%", bottom: "9%", bg: "#4dd98a", delay: "0.9s" },
   { left: "80%", bottom: "5%", bg: "#ff4d86", delay: "1.5s" },
-  { left: "92%", bottom: "13%", bg: "#6c4dff", delay: "0.45s" },
+  { left: "92%", bottom: "13%", bg: "#00A8C0", delay: "0.45s" },
 ];
 
 function FinishScreen() {

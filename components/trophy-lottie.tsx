@@ -7,11 +7,11 @@ import { useEffect, useState } from "react";
 import { DotLottieReact, type DotLottie } from "@lottiefiles/dotlottie-react";
 
 type Props = {
-  src?: string; // 기본은 완주 카드의 트로피
+  src?: string; // 기본은 완주 카드의 트로피(winner.lottie). 이전 트로피 trophy.lottie 는 파일만 남겨 둔다
   loop?: boolean;
 };
 
-export default function TrophyLottie({ src = "/lottie/trophy.lottie", loop = false }: Props) {
+export default function TrophyLottie({ src = "/lottie/winner.lottie", loop = false }: Props) {
   const [player, setPlayer] = useState<DotLottie | null>(null);
   const [reducedMotion] = useState(() => window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
