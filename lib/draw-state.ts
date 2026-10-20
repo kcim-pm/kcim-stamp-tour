@@ -166,3 +166,27 @@ export function assignPrizeSorts(rows: OrderedPrize[]): number[] {
   let next = Math.max(0, ...rows.filter((r) => r.drawn).map((r) => r.sort ?? 0)) + 1;
   return rows.map((r) => (r.drawn && r.sort !== null ? r.sort : next++));
 }
+
+// ── 당첨 현황 줄 ─────────────────────────────────────  spec 3.4 「우측 패널」, A-26
+// 등수는 경품 이름에서 읽지 않고 추첨 순서(sort)를 거꾸로 센다. 경품 5개면 처음 뽑는 경품이 5등, 마지막이 1등.
+// 1등이 맨 위에 오도록 역순으로 돌려준다.
+// 확정 전에는 관객이 경품을 미리 알지 못하게 이름과 번호를 비운다(null). 임시 결과도 확정 전이므로 비운다.
+// 인원은 확정 전에는 경품의 당첨 인원, 확정 후에는 실제로 확정된 번호 수다. 운영자 패널에서 인원을 바꿔 뽑을 수 있어서다.
+export type PanelPrize = { id: number; name: string; winnerCount: number; sort: number };
+export type ConfirmedPrizeNos = { prizeId: number; participantNos: number[] };
+export type PanelRow = { id: number; rank: number; name: string | null; count: number; nos: number[] | null };
+
+export function winnersPanelRows(prizes: PanelPrize[], confirmed: ConfirmedPrizeNos[]): PanelRow[] {
+  const nosByPrize = new Map<number, number[]>();
+  for (const c of confirmed) nosByPrize.set(c.prizeId, [...(nosByPrize.get(c.prizeId) ?? []), ...c.participantNos]);
+
+  const ordered = [...prizes].sort((a, b) => a.sort - b.sort);
+  return ordered
+    .map((p, i) => {
+      const nos = nosByPrize.get(p.id);
+      return nos
+        ? { id: p.id, rank: ordered.length - i, name: p.name, count: nos.length, nos: [...nos].sort((a, b) => a - b) }
+        : { id: p.id, rank: ordered.length - i, name: null, count: p.winnerCount, nos: null };
+    })
+    .reverse();
+}

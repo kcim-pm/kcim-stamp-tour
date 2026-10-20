@@ -5,7 +5,7 @@
 //
 // 가장 중요한 원칙: 「지금 어느 단계인가」를 따로 저장하지 않고 서버에서 받은 회차 목록을 보고 매번 계산한다.
 // 그래야 창을 닫았다 다시 열거나 새로고침해도 같은 단계로 돌아온다 (spec 3.4, D-10).
-// 화면에만 기억하는 것은 「방금 확정한 회차」, 보고 있는 이전 회차, 고른 번호, 준비 입력값, 연출 상태, 패널 열림뿐이다.
+// 화면에만 기억하는 것은 「방금 확정한 회차」, 보고 있는 이전 회차, 고른 번호, 재추첨 순서, 준비 입력값, 연출 상태, 패널 열림뿐이다.
 //
 // 화면에 입력 버튼 없이 키보드로만 조작한다. 
 // 동작 방법은 lib/draw-keys.ts 가 정한다. 
@@ -15,6 +15,7 @@ import { adminFetch, errorMessage } from "@/lib/admin-fetch";
 import type { DrawResponse, PrizeResponse } from "@/lib/admin-query";
 import { isActionAllowed, keyToAction, type DrawAction, type DrawPhase, type KeyContext } from "@/lib/draw-keys";
 import { currentPrize } from "@/lib/draw-state";
+import { winnerDisplayOrder } from "@/lib/winner-layout";
 import { OperatorPanel } from "./operator-panel";
 import { PrizeIntro, PrizeTitle } from "./prize-title";
 import { Reel } from "./reel";
@@ -39,6 +40,9 @@ export function DrawScreen() {
   const [viewingId, setViewingId] = useState<number | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [fresh, setFresh] = useState<Set<number>>(new Set());
+  // 회차별 재추첨 묶음. 재추첨 번호를 기존 번호 뒤에 붙이려면 뽑힌 순서가 필요한데 DB 에는 없어서 화면이 기억한다 (이슈 #6).
+  // 새로고침하면 사라지고 번호는 전부 오름차순으로 돌아간다.
+  const [redraws, setRedraws] = useState<Record<number, number[][]>>({});
   const [excludePrevious, setExcludePrevious] = useState(true);
   const [countInput, setCountInput] = useState("");
   const [animating, setAnimating] = useState(false);
@@ -171,8 +175,10 @@ export function DrawScreen() {
       (draw) => {
         replaceDraw(draw);
         setSelected(new Set());
-        // 새로 뽑힌 번호는 잠깐 강조한다.
-        setFresh(new Set(draw.winners.map((w) => w.participantNo).filter((no) => !before.has(no))));
+        // 새로 뽑힌 번호는 잠깐 강조하고, 기존 번호 뒤에 붙이도록 묶음으로 기억한다.
+        const added = draw.winners.map((w) => w.participantNo).filter((no) => !before.has(no));
+        setFresh(new Set(added));
+        setRedraws((r) => ({ ...r, [draw.id]: [...(r[draw.id] ?? []), added] }));
         setTimeout(() => setFresh(new Set()), HIGHLIGHT_MS);
       },
     );
@@ -256,7 +262,10 @@ export function DrawScreen() {
   const shownCount = shownDraw?.winnerCount ?? countInput;
   const candidateCount = excludePrevious ? drawData.candidateCount : drawData.completedCount;
   const nos = (d: DrawResponse, status: "pending" | "confirmed") =>
-    d.winners.filter((w) => w.status === status).map((w) => w.participantNo);
+    winnerDisplayOrder(
+      d.winners.filter((w) => w.status === status).map((w) => w.participantNo),
+      redraws[d.id] ?? [],
+    );
 
   return (
     <main className="draw-screen">

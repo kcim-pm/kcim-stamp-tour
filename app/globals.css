@@ -425,17 +425,17 @@ button, input { font-family: inherit; }
 }
 .draw-finish-sub { font-size: clamp(18px, 2vw, 36px); font-weight: 700; color: var(--ink-soft); }
 
-/* 당첨 현황. 경품 이름만. 지금 뽑는 경품은 연보라 띠, 끝난 경품은 번호 칩. */
+/* 당첨 현황. 1등이 맨 위. 확정 전은 등수·인원만 흐리게, 확정되면 경품 이름까지 진하게 쓰고 번호 칩을 붙인다. 지금 뽑는 경품은 연보라 띠. */
 .winners-panel {
   background: #fff; border: 1px solid var(--line); border-radius: 20px; padding: 2vh 1vw;
   display: flex; flex-direction: column; gap: 1.6vh; min-height: 0; overflow-y: auto;
 }
 .winners-panel h2 { margin: 0; font-size: clamp(16px, 1.5vw, 24px); font-weight: 900; }
 .panel-prize { display: flex; flex-direction: column; gap: 0.8vh; }
-.panel-prize h3 { margin: 0; font-size: clamp(13px, 1.1vw, 18px); font-weight: 900; }
-.panel-prize.is-waiting h3 { color: var(--muted-2); font-weight: 700; }
+.panel-prize h3 { margin: 0; font-size: clamp(13px, 1.1vw, 18px); font-weight: 900; color: var(--ink); }
+.panel-prize.is-waiting h3 { color: var(--muted-2); font-weight: 500; }
 .panel-prize.is-current { padding: 1vh 0.8vw; border-radius: 10px; background: var(--accent-soft); }
-.panel-prize.is-current h3 { color: var(--accent-deep); }
+.panel-prize.is-current h3 { color: var(--accent-deep); font-weight: 700; }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .chip { background: var(--accent-soft); color: var(--accent-deep); border-radius: 8px; padding: 2px 8px; font-size: clamp(12px, 1vw, 16px); font-weight: 900; }
 

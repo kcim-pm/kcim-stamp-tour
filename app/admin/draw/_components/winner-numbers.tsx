@@ -9,9 +9,9 @@
 // 두 가지 모드
 //   - select (결과(임시)): 번호를 누르면 부재자로 고른다. 고른 번호는 주황 면이 뒤에 깔린다. 재추첨된 부재자는 목록에 없다.
 //   - confirmed (확정 후, 이전 결과): 보여 주기만 한다.
-// 순서는 참가번호 오름차순이다. 서버가 이미 이 순서로 보낸다.
+// 순서는 받은 nos 그대로다. 발표 화면이 winnerDisplayOrder 로 정해서 넘긴다(오름차순, 재추첨 번호는 뒤에).
 import { useEffect, useState } from "react";
-import { winnerLayout } from "@/lib/winner-layout";
+import { winnerEnterOrder, winnerLayout } from "@/lib/winner-layout";
 
 type Props = {
   nos: number[];
@@ -24,6 +24,8 @@ type Props = {
 
 export function WinnerNumbers({ nos, selected, fresh, disabled, onToggle, size }: Props) {
   const layout = winnerLayout(nos.length);
+  // 재추첨 번호는 끝자리여도 기다리지 않고 바로 굴러 들어온다.
+  const enterOrder = winnerEnterOrder(nos, fresh ?? new Set());
   // --size 는 단위 없는 숫자(1280px 폭 기준 px). CSS 에서 화면 폭에 비례해 vw 로 바꾼다.
   const style = { "--size": size ?? layout.size, "--cols": layout.cols } as React.CSSProperties;
 
@@ -33,7 +35,7 @@ export function WinnerNumbers({ nos, selected, fresh, disabled, onToggle, size }
         <WinnerNumber
           key={no}
           no={no}
-          order={i}
+          order={enterOrder[i]}
           pressed={selected?.has(no) ?? false}
           fresh={fresh?.has(no) ?? false}
           disabled={disabled || !onToggle}
