@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildStatus } from "../lib/status";
+import { buildStatus, isZoneVisited } from "../lib/status";
 
 const zones = [
   { id: 1, code: "zone1", name: "구역 1", sort: 1 },
@@ -52,5 +52,25 @@ describe("현황 계산", () => {
     expect(Object.keys(status).sort()).toEqual(
       ["completed", "participantNo", "visitedCount", "zoneCount", "zones"].sort(),
     );
+  });
+});
+
+describe("이 구역 인증 여부 (3.2 번호 입력 카드)", () => {
+  const status = buildStatus(7, zones, [{ zone_id: 2, visited_at: "a" }]);
+
+  it("현황에서 이 구역이 방문 완료면 참이다", () => {
+    expect(isZoneVisited(status, "zone2")).toBe(true);
+  });
+
+  it("방문하지 않은 구역이면 거짓이다", () => {
+    expect(isZoneVisited(status, "zone1")).toBe(false);
+  });
+
+  it("현황에 없는 구역 코드면 거짓이다", () => {
+    expect(isZoneVisited(status, "zone9")).toBe(false);
+  });
+
+  it("현황이 아직 없으면 거짓이다", () => {
+    expect(isZoneVisited(null, "zone2")).toBe(false);
   });
 });

@@ -1,7 +1,7 @@
 "use client";
 // 참가자 화면 본체 (spec 3.2). 디자인은 app/globals.css 의 클래스, 로직은 이 파일.
 import { useEffect, useState } from "react";
-import type { ParticipantStatus, ZoneStatus } from "@/lib/status";
+import { isZoneVisited, type ParticipantStatus, type ZoneStatus } from "@/lib/status";
 
 export type ZoneResult =
   | { kind: "none" }
@@ -104,15 +104,17 @@ export function ParticipantScreen({ zone, zoneToken }: { zone: ZoneResult; zoneT
   }
 
   const canVerify = zone.kind === "valid";
+  // 이 구역 인증을 마쳤으면 입력을 막고 메인으로 돌아가게 한다. 다시 열어도 저장된 번호의 현황으로 판단한다
+  const verified = zone.kind === "valid" && isZoneVisited(status, zone.code);
   const retry = banner?.kind === "network" ? (canVerify ? verify : lookup) : null;
 
   return (
     <main className="screen">
       {/* 1 머리글 */}
       <header className="header">
-        <div className="header-title">
+        <a href="/" className="header-title">
           BIMlize Con 2026 <em>스탬프 투어</em>
-        </div>
+        </a>
         <a href="/manual">이용 안내</a>
       </header>
 
@@ -157,12 +159,20 @@ export function ParticipantScreen({ zone, zoneToken }: { zone: ZoneResult; zoneT
           maxLength={3}
           placeholder="132"
           value={input}
+          disabled={verified}
           onChange={(e) => setInput(e.target.value)}
         />
         <div className="hint-small">입장 명찰이나 등록 번호를 입력해 주세요</div>
-        <button className="btn" disabled={busy} onClick={canVerify ? verify : lookup}>
-          {canVerify ? "방문 인증하기 →" : "현황 확인하기 →"}
-        </button>
+        {verified ? (
+          <a className="btn btn-back" href="/">
+            <BackIcon />
+            메인으로 돌아가기
+          </a>
+        ) : (
+          <button className="btn" disabled={busy} onClick={canVerify ? verify : lookup}>
+            {canVerify ? "방문 인증하기 →" : "현황 확인하기 →"}
+          </button>
+        )}
       </section>
 
       {/* 4 결과 배너 */}
@@ -233,11 +243,6 @@ export function ParticipantScreen({ zone, zoneToken }: { zone: ZoneResult; zoneT
           )}
         </section>
       )}
-
-      {/* 7 바닥 */}
-      <footer className="footer">
-        <a href="/manual">이용 매뉴얼 보기 →</a>
-      </footer>
     </main>
   );
 }
@@ -319,6 +324,15 @@ function CheckIcon() {
   return (
     <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
       <path d="m5 12 5 5 9-10" />
+    </svg>
+  );
+}
+
+function BackIcon() {
+  return (
+    <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M19 12H5" />
+      <path d="m12 19-7-7 7-7" />
     </svg>
   );
 }

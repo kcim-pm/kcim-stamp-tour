@@ -65,6 +65,8 @@ button, input { font-family: inherit; }
 .header-title { font-size: 17px; font-weight: 900; letter-spacing: -0.2px; }
 .header-title em { font-style: normal; color: var(--accent); }
 .header a { font-size: 13px; font-weight: 700; text-decoration: none; }
+/* 제목이 링크일 때도 제목 모양을 유지한다 */
+.header a.header-title { font-size: 17px; font-weight: 900; color: inherit; }
 
 .card {
   background: #fff;
@@ -109,6 +111,7 @@ button, input { font-family: inherit; }
   outline: none;
 }
 .input-no:focus { border-color: var(--accent); }
+.input-no:disabled { background: var(--gray-bg); color: var(--ink-soft); }
 
 .btn {
   height: 54px;
@@ -121,6 +124,8 @@ button, input { font-family: inherit; }
   cursor: pointer;
 }
 .btn:disabled { opacity: 0.55; cursor: default; }
+/* 링크로 쓰는 [메인으로 돌아가기] 버튼 */
+.btn-back { display: flex; align-items: center; justify-content: center; gap: 8px; color: #fff; text-decoration: none; }
 .btn-small {
   height: 32px;
   padding: 0 12px;
