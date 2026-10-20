@@ -13,6 +13,7 @@
 // 추첨 설정(이전 당첨자 제외)은 관객에게 보이지 않도록 관리자 콘솔에서 고치고, 여기서는 브라우저 저장소로 받아 읽기만 한다.
 // 당첨 인원은 경품 목록에 등록한 인원을 그대로 쓴다.
 import { useCallback, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { adminFetch, errorMessage } from "@/lib/admin-fetch";
 import type { DrawResponse, PrizeResponse } from "@/lib/admin-query";
 import { isActionAllowed, keyToAction, type DrawAction, type DrawPhase, type KeyContext } from "@/lib/draw-keys";
@@ -278,8 +279,11 @@ export function DrawScreen() {
   );
 }
 
-// 모든 경품을 확정한 뒤의 종료 화면. 참가자 화면 완주 카드와 같은 트로피·색종이를 프로젝터 크기로 키워 쓴다.
-// 움직임은 globals.css 의 prefers-reduced-motion 규칙으로 함께 꺼진다.
+// 모든 경품을 확정한 뒤의 종료 화면. 가운데에 선물 Lottie 애니메이션(public/lottie/gift.lottie)이 계속 돌고, 색종이는
+// 참가자 완주 카드와 같은 것을 프로젝터 크기로 키워 쓴다. 플레이어는 종료 장면에서만 내려받는다.
+// 색종이 움직임은 globals.css 의 prefers-reduced-motion 규칙으로, Lottie 는 플레이어 안에서 함께 꺼진다.
+const FinishLottie = dynamic(() => import("@/components/trophy-lottie"), { ssr: false });
+
 const FINISH_CONFETTI = [
   { left: "8%", bottom: "12%", bg: "#ff4d86", delay: "0s" },
   { left: "20%", bottom: "4%", bg: "#6c4dff", delay: "0.6s" },
@@ -301,18 +305,8 @@ function FinishScreen() {
           style={{ left: p.left, bottom: p.bottom, background: p.bg, animationDelay: p.delay }}
         />
       ))}
-      <div className="trophy">
-        <div className="ring" aria-hidden="true" />
-        <div className="ring" aria-hidden="true" style={{ animationDelay: "0.9s" }} />
-        <div className="trophy-inner">
-          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="#7a4600" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M8 21h8" />
-            <path d="M12 17v4" />
-            <path d="M7 4h10v6a5 5 0 0 1-10 0V4Z" />
-            <path d="M17 6h2a2 2 0 0 1 0 4h-2" />
-            <path d="M7 6H5a2 2 0 0 0 0 4h2" />
-          </svg>
-        </div>
+      <div className="draw-finish__lottie" aria-hidden="true">
+        <FinishLottie src="/lottie/gift.lottie" loop />
       </div>
       <div className="draw-finish-label">LUCKY DRAW</div>
       <div className="draw-finish-title">모든 추첨이 끝났습니다</div>

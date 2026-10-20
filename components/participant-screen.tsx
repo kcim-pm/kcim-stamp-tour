@@ -1,7 +1,11 @@
 "use client";
 // 참가자 화면 본체 (spec 3.2). 디자인은 app/globals.css 의 클래스, 로직은 이 파일.
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { isZoneVisited, type ParticipantStatus, type ZoneStatus } from "@/lib/status";
+
+// 트로피 애니메이션 플레이어는 완주 카드가 뜰 때만 불러온다. 불러오는 동안은 같은 크기의 빈 칸을 둔다.
+const TrophyLottie = dynamic(() => import("./trophy-lottie"), { ssr: false });
 
 export type ZoneResult =
   | { kind: "none" }
@@ -202,12 +206,8 @@ export function ParticipantScreen({ zone, zoneToken }: { zone: ZoneResult; zoneT
       {status?.completed && (
         <section className="clay">
           <Confetti />
-          <div className="trophy">
-            <div className="ring" aria-hidden="true" />
-            <div className="ring" aria-hidden="true" style={{ animationDelay: "0.9s" }} />
-            <div className="trophy-inner">
-              <TrophyIcon />
-            </div>
+          <div className="trophy-lottie" aria-hidden="true">
+            <TrophyLottie />
           </div>
           <div className="win-title">완주 성공!</div>
           <div className="win-label">내 참가번호</div>
@@ -342,18 +342,6 @@ function CheckCircleIcon() {
     <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1f9d5e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="10" />
       <path d="m8 12 3 3 5-6" />
-    </svg>
-  );
-}
-
-function TrophyIcon() {
-  return (
-    <svg aria-hidden="true" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#7a4600" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M8 21h8" />
-      <path d="M12 17v4" />
-      <path d="M7 4h10v6a5 5 0 0 1-10 0V4Z" />
-      <path d="M17 6h2a2 2 0 0 1 0 4h-2" />
-      <path d="M7 6H5a2 2 0 0 0 0 4h2" />
     </svg>
   );
 }
