@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { requireAdminPage } from "@/lib/admin-session";
 import { AdminConsole } from "./_components/admin-console";
+import { DrawSettingsPanel } from "./_components/draw-settings-panel";
 import { LogoutButton } from "./_components/logout-button";
 import { OpenDrawButton } from "./_components/open-draw-button";
 import { PrizeEditor } from "./_components/prize-editor";
@@ -32,6 +33,7 @@ export default async function AdminPage() {
         </nav>
       </header>
       <AdminConsole />
+      <DrawSettingsPanel />
       <PrizeEditor />
     </main>
   );

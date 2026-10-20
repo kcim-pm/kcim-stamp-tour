@@ -11,7 +11,7 @@ import { useEffect, useRef } from "react";
 
 const STEPS = [1, 3, 7];
 
-export function Reel({ paused }: { paused: boolean }) {
+export function Reel() {
   const strips = useRef<(HTMLSpanElement | null)[]>([]);
 
   useEffect(() => {
@@ -29,7 +29,7 @@ export function Reel({ paused }: { paused: boolean }) {
   }, []);
 
   return (
-    <p className={`reel${paused ? " is-paused" : ""}`} aria-hidden="true">
+    <p className="reel" aria-hidden="true">
       {STEPS.map((_, k) => (
         <span key={k} className="reel__col">
           <span

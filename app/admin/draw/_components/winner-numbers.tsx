@@ -8,7 +8,7 @@
 //
 // 두 가지 모드
 //   - select (결과(임시)): 번호를 누르면 부재자로 고른다. 고른 번호는 주황 면이 뒤에 깔린다. 재추첨된 부재자는 목록에 없다.
-//   - confirmed (확정 후, 이전 결과): 보여 주기만 한다.
+//   - confirmed (확정 후): 보여 주기만 한다.
 // 순서는 받은 nos 그대로다. 발표 화면이 winnerDisplayOrder 로 정해서 넘긴다(오름차순, 재추첨 번호는 뒤에).
 import { useEffect, useState } from "react";
 import { winnerEnterOrder, winnerLayout } from "@/lib/winner-layout";
