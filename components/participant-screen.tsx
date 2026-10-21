@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { isZoneVisited, type ParticipantStatus, type ZoneStatus } from "@/lib/status";
+import { StickyHeader } from "@/components/sticky-header";
 
 // 트로피 애니메이션 플레이어는 완주 카드가 뜰 때만 불러온다. 불러오는 동안은 같은 크기의 빈 칸을 둔다.
 const TrophyLottie = dynamic(() => import("./trophy-lottie"), { ssr: false });
@@ -47,14 +48,6 @@ export function ParticipantScreen({ zone, zoneToken }: { zone: ZoneResult; zoneT
   const [status, setStatus] = useState<ParticipantStatus | null>(null);
   const [banner, setBanner] = useState<Banner | null>(null);
   const [busy, setBusy] = useState(false);
-  // 머리글은 처음부터 맨 위에 붙어 있으므로, 조금이라도 스크롤했을 때를 「고정된 상태」로 보고 그림자를 켠다.
-  const [scrolled, setScrolled] = useState(false);
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 0);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
   // 처음 열 때: 저장된 번호가 있으면 입력란에 채우고 현황을 조용히 불러온다 (P-04, P-09)
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -123,12 +116,15 @@ export function ParticipantScreen({ zone, zoneToken }: { zone: ZoneResult; zoneT
   return (
     <main className="screen">
       {/* 1 머리글 */}
-      <header className={`header header-sticky${scrolled ? " is-stuck" : ""}`}>
+      <StickyHeader className="header header-bar">
         <a href="/" className="header-title">
           BIMlize Con 2026 <em>스탬프 투어</em>
         </a>
-        <a href="/manual">이용 안내</a>
-      </header>
+        <a href="/manual" className="header-link">
+          <InfoIcon />
+          이용 안내
+        </a>
+      </StickyHeader>
 
       {/* 2 현재 위치 */}
       <section className="card card-center">
@@ -316,6 +312,17 @@ function Confetti() {
         />
       ))}
     </>
+  );
+}
+
+/* 머리글 [이용 안내] 앞의 정보 아이콘 */
+function InfoIcon() {
+  return (
+    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5" />
+      <path d="M12 8h.01" />
+    </svg>
   );
 }
 

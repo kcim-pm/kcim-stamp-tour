@@ -70,18 +70,36 @@ button, input { font-family: inherit; }
 .header a { font-size: 13px; font-weight: 700; text-decoration: none; }
 /* 제목이 링크일 때도 제목 모양을 유지한다 */
 .header a.header-title { font-size: 17px; font-weight: 900; color: inherit; }
-/* 참가자 화면 머리글. 스크롤해도 위에 붙어 있고, 뒤로 지나가는 카드가 흐리게 비친다(glass).
-   매뉴얼 화면은 탭 막대가 위에 붙으므로 이 클래스를 쓰지 않는다. */
-.header-sticky {
-  position: sticky;
-  top: 0;
-  z-index: 10;
+/* 오른쪽 글자 링크([이용 안내]). 앞에 아이콘을 붙이고 터치 영역을 넉넉히 둔다 */
+.header-link { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 0 2px; color: var(--accent); }
+/* 한글 글자는 줄 상자 가운데보다 1px 아래에 그려지므로 아이콘을 그만큼 내려 눈으로 보는 중앙선을 맞춘다 */
+.header-link svg { transform: translateY(1px); }
+/* 매뉴얼 머리글: 왼쪽에 둥근 돌아가기 화살표, 그 옆에 제목 */
+.header-with-back { justify-content: flex-start; gap: 2px; }
+/* 꺾쇠만 두고 배경은 없다. 터치 영역 36px 은 유지하고, 꺾쇠가 제목 왼쪽 끝에 맞도록 왼쪽으로 당긴다 */
+.header-back {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; flex: none;
+  margin-left: -10px;
+  color: var(--ink);
+}
+/* 제목 한글 글자의 시각 중심에 맞춰 꺾쇠를 1px 내린다(.header-link svg 와 같은 이유) */
+.header-back svg { transform: translateY(1px); }
+/* 머리글 막대. 화면 위쪽과 양옆 끝까지 붙이고, 뒤로 지나가는 카드가 흐리게 비친다(glass).
+   참가자 화면과 매뉴얼 화면이 같은 모양을 쓴다. */
+.header-bar {
   /* .screen 의 여백(16px)을 상쇄해 화면 위쪽과 양옆 끝까지 붙인다 */
   margin: -16px -16px 0;
   padding: 12px 20px;
   background: rgba(255, 255, 255, 0.55);
   -webkit-backdrop-filter: blur(12px) saturate(160%);
   backdrop-filter: blur(12px) saturate(160%);
+}
+/* 참가자 화면과 참가자 매뉴얼의 머리글은 스크롤해도 위에 붙어 있다(components/sticky-header.tsx). */
+.header-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   transition: box-shadow 0.2s;
 }
 /* 스크롤해서 내용이 머리글 뒤로 지나갈 때만 그림자를 준다 */
@@ -470,21 +488,6 @@ button, input { font-family: inherit; }
 
 /* ── 이용 매뉴얼 (/manual) ── */
 .manual { padding-bottom: 32px; }
-.manual-tabs {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-  padding: 6px;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  backdrop-filter: blur(6px);
-}
-.manual-tabs a { text-align: center; padding: 8px 4px; border-radius: 10px; font-size: 14px; font-weight: 700; text-decoration: none; }
-.manual-tabs a:hover { background: var(--accent-soft); }
 .manual-section { display: flex; flex-direction: column; gap: 12px; scroll-margin-top: 64px; padding-top: 12px; }
 .manual-section h1 { margin: 0; font-size: 22px; font-weight: 900; }
 .manual-section h2 { margin: 8px 0 0; font-size: 16px; font-weight: 900; color: var(--accent-deep); }
@@ -516,3 +519,5 @@ button, input { font-family: inherit; }
 .manual-faq details { gap: 0; padding: 14px 16px; }
 .manual-faq summary { cursor: pointer; font-size: 15px; font-weight: 700; line-height: 1.4; }
 .manual-faq details p { margin: 10px 0 0; font-size: 14px; line-height: 1.65; color: var(--ink-soft); }
+/* 운영자 가이드(/admin/manual). 콘솔 틀 안에서 읽기 좋은 폭으로 좁힌다 */
+.manual-admin-body { max-width: 760px; display: flex; flex-direction: column; gap: 16px; }
