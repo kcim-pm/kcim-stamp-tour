@@ -1,7 +1,7 @@
 // /manual — 이용 안내 (spec 3.7). 서버 컴포넌트, 정적 페이지.
 // 참가자 가이드와 참가자용 자주 묻는 질문만 담는다. 운영자 가이드는 로그인 뒤 /admin/manual 에서 본다.
 // 화면 배치는 바뀔 수 있으므로 버튼 위치보다 「무엇을 하면 어떻게 되는지」 흐름 위주로 쓴다.
-// 이미지는 public/manual/ 에 있고 scripts/capture-manual.mjs 로 다시 찍는다.
+// 이미지는 public/manual/ 에 있다. 화면이 바뀌면 spec 3.7 작성 규칙대로 직접 다시 찍는다.
 import type { Metadata } from "next";
 import { FaqList, StepList, type Faq, type Step } from "@/components/manual-guide";
 import { StickyHeader } from "@/components/sticky-header";
