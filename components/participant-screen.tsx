@@ -1,7 +1,12 @@
 "use client";
 // 참가자 화면 본체 (spec 3.2). 디자인은 app/globals.css 의 클래스, 로직은 이 파일.
 import { useEffect, useState } from "react";
-import type { ParticipantStatus, ZoneStatus } from "@/lib/status";
+import dynamic from "next/dynamic";
+import { isZoneVisited, type ParticipantStatus, type ZoneStatus } from "@/lib/status";
+import { StickyHeader } from "@/components/sticky-header";
+
+// 트로피 애니메이션 플레이어는 완주 카드가 뜰 때만 불러온다. 불러오는 동안은 같은 크기의 빈 칸을 둔다.
+const TrophyLottie = dynamic(() => import("./trophy-lottie"), { ssr: false });
 
 export type ZoneResult =
   | { kind: "none" }
@@ -18,6 +23,9 @@ type Banner =
 const STORAGE_KEY = "participantNo";
 
 // 경로형 스탬프 배치. 구역 5곳 기준 좌표(px)와 기울기. 구역 수가 다르면 한 줄 배치로 대체한다.
+// 코인 자리는 SVG viewBox(318x214)와 같은 좌표계의 px 값이다. 화면에는 백분율로 바꿔 놓아 트랙이 줄어도 경로 위에 머문다.
+const TRACK_W = 318;
+const TRACK_H = 214;
 const COIN_SLOTS = [
   { left: 2, top: 10, r: -10 },
   { left: 124, top: 92, r: 8 },
@@ -104,17 +112,22 @@ export function ParticipantScreen({ zone, zoneToken }: { zone: ZoneResult; zoneT
   }
 
   const canVerify = zone.kind === "valid";
+  // 이 구역 인증을 마쳤으면 입력을 막고 메인으로 돌아가게 한다. 다시 열어도 저장된 번호의 현황으로 판단한다
+  const verified = zone.kind === "valid" && isZoneVisited(status, zone.code);
   const retry = banner?.kind === "network" ? (canVerify ? verify : lookup) : null;
 
   return (
     <main className="screen">
       {/* 1 머리글 */}
-      <header className="header">
-        <div className="header-title">
+      <StickyHeader className="header header-bar">
+        <a href="/" className="header-title">
           BIMlize Con 2026 <em>스탬프 투어</em>
-        </div>
-        <a href="/manual">이용 안내</a>
-      </header>
+        </a>
+        <a href="/manual" className="header-link">
+          <InfoIcon />
+          이용 안내
+        </a>
+      </StickyHeader>
 
       {/* 2 현재 위치 */}
       <section className="card card-center">
@@ -155,14 +168,22 @@ export function ParticipantScreen({ zone, zoneToken }: { zone: ZoneResult; zoneT
           className="input-no"
           inputMode="numeric"
           maxLength={3}
-          placeholder="132"
+          placeholder="801"
           value={input}
+          disabled={verified}
           onChange={(e) => setInput(e.target.value)}
         />
         <div className="hint-small">입장 명찰이나 등록 번호를 입력해 주세요</div>
-        <button className="btn" disabled={busy} onClick={canVerify ? verify : lookup}>
-          {canVerify ? "방문 인증하기 →" : "현황 확인하기 →"}
-        </button>
+        {verified ? (
+          <a className="btn btn-back" href="/">
+            <BackIcon />
+            메인으로 돌아가기
+          </a>
+        ) : (
+          <button className="btn" disabled={busy} onClick={canVerify ? verify : lookup}>
+            {canVerify ? "방문 인증하기 →" : "현황 확인하기 →"}
+          </button>
+        )}
       </section>
 
       {/* 4 결과 배너 */}
@@ -192,12 +213,8 @@ export function ParticipantScreen({ zone, zoneToken }: { zone: ZoneResult; zoneT
       {status?.completed && (
         <section className="clay">
           <Confetti />
-          <div className="trophy">
-            <div className="ring" aria-hidden="true" />
-            <div className="ring" aria-hidden="true" style={{ animationDelay: "0.9s" }} />
-            <div className="trophy-inner">
-              <TrophyIcon />
-            </div>
+          <div className="trophy-lottie" aria-hidden="true">
+            <TrophyLottie />
           </div>
           <div className="win-title">완주 성공!</div>
           <div className="win-label">내 참가번호</div>
@@ -233,11 +250,6 @@ export function ParticipantScreen({ zone, zoneToken }: { zone: ZoneResult; zoneT
           )}
         </section>
       )}
-
-      {/* 7 바닥 */}
-      <footer className="footer">
-        <a href="/manual">이용 매뉴얼 보기 →</a>
-      </footer>
     </main>
   );
 }
@@ -257,7 +269,7 @@ function StampTrack({ zones }: { zones: ZoneStatus[] }) {
     const slot = onPath ? COIN_SLOTS[i] : { left: 0, top: 0, r: [-10, 8, -5, 6, -7][i % 5] };
     const style = {
       "--r": `${slot.r}deg`,
-      ...(onPath ? { left: slot.left, top: slot.top } : {}),
+      ...(onPath ? { left: `${(slot.left / TRACK_W) * 100}%`, top: `${(slot.top / TRACK_H) * 100}%` } : {}),
       animationDelay: z.visited ? `${0.5 + i * 0.2}s` : `${(i * 0.4) % 1.5}s`,
     } as React.CSSProperties;
     const cls = z.visited ? `coin coin-done c${(i % 5) + 1}` : "coin coin-wait";
@@ -272,11 +284,11 @@ function StampTrack({ zones }: { zones: ZoneStatus[] }) {
 
   return (
     <div className="track" aria-label={`${visitedCount}곳 인증 완료`}>
-      <svg viewBox="0 0 318 214" fill="none" aria-hidden="true">
-        <path d={TRACK_PATH} stroke="#d9d1ff" strokeWidth="14" strokeLinecap="round" />
+      <svg viewBox={`0 0 ${TRACK_W} ${TRACK_H}`} fill="none" aria-hidden="true">
+        <path d={TRACK_PATH} stroke="#d4ecf5" strokeWidth="14" strokeLinecap="round" />
         <path d={TRACK_PATH} stroke="#ffffff" strokeWidth="6" strokeLinecap="round" />
         {streak > 0 && (
-          <path className="trail" d={TRAIL_BY_COUNT[streak]} stroke="#6c4dff" strokeWidth="4" strokeLinecap="round" />
+          <path className="trail" d={TRAIL_BY_COUNT[streak]} stroke="#00A8C0" strokeWidth="4" strokeLinecap="round" />
         )}
       </svg>
       {coins}
@@ -287,7 +299,7 @@ function StampTrack({ zones }: { zones: ZoneStatus[] }) {
 function Confetti() {
   const pieces = [
     { left: "10%", bottom: "10%", bg: "#ff4d86", delay: "0s" },
-    { left: "26%", bottom: "6%", bg: "#6c4dff", delay: "0.5s" },
+    { left: "26%", bottom: "6%", bg: "#00A8C0", delay: "0.5s" },
     { left: "50%", bottom: "8%", bg: "#3fb9ff", delay: "1s" },
     { left: "72%", bottom: "4%", bg: "#ffab2e", delay: "0.3s" },
     { left: "88%", bottom: "12%", bg: "#4dd98a", delay: "1.4s" },
@@ -303,6 +315,17 @@ function Confetti() {
         />
       ))}
     </>
+  );
+}
+
+/* 머리글 [이용 안내] 앞의 정보 아이콘 */
+function InfoIcon() {
+  return (
+    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5" />
+      <path d="M12 8h.01" />
+    </svg>
   );
 }
 
@@ -323,23 +346,20 @@ function CheckIcon() {
   );
 }
 
+function BackIcon() {
+  return (
+    <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M19 12H5" />
+      <path d="m12 19-7-7 7-7" />
+    </svg>
+  );
+}
+
 function CheckCircleIcon() {
   return (
     <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1f9d5e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="10" />
       <path d="m8 12 3 3 5-6" />
-    </svg>
-  );
-}
-
-function TrophyIcon() {
-  return (
-    <svg aria-hidden="true" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#7a4600" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M8 21h8" />
-      <path d="M12 17v4" />
-      <path d="M7 4h10v6a5 5 0 0 1-10 0V4Z" />
-      <path d="M17 6h2a2 2 0 0 1 0 4h-2" />
-      <path d="M7 6H5a2 2 0 0 0 0 4h2" />
     </svg>
   );
 }

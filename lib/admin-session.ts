@@ -9,7 +9,7 @@ import { SESSION_COOKIE, verifySessionToken } from "./auth";
 //
 // lib/auth.ts(순수 함수)와 Next.js(쿠키·환경변수·redirect) 사이를 잇는 얇은 층.
 // status.ts(계산) / status-query.ts(DB 접근) 를 나눈 것과 같은 이유로 나눈다.
-// 페이지 3곳(/qr, /admin, /admin/draw)과 관리자 API 가 전부 이 파일을 부른다.
+// 페이지 4곳(/qr, /admin, /admin/draw, /admin/manual)과 관리자 API 가 전부 이 파일을 부른다.
 
 export function requireAdminEnv(name: "ADMIN_PASSWORD" | "ADMIN_SESSION_SECRET"): string {
   const value = process.env[name];

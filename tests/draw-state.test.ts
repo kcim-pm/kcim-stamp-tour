@@ -8,6 +8,7 @@ import {
   splitPrizeChanges,
   assignPrizeSorts,
   orderPrizesForEditing,
+  winnersPanelRows,
   type PrizeRecord,
   type DrawRow,
   type WinnerRow,
@@ -145,6 +146,14 @@ describe("경품 목록 변경 내용 나누기", () => {
       });
     });
 
+    it("예전 콘솔이 보내던 사진 주소(imageUrl)는 무시한다 (경품 사진 삭제, 10/22)", () => {
+      expect(splitPrizeChanges(current, [P1, { ...P2, imageUrl: "https://example.com/airpods.png" }], [])).toEqual({
+        toInsert: [],
+        toUpdate: [],
+        toDelete: [],
+      });
+    });
+
     it("아직 추첨하지 않은 경품의 이름을 바꾸면 「수정」 묶음에 들어간다", () => {
       const changed = { ...P2, name: "4등 머그컵" };
       expect(splitPrizeChanges(current, [P1, changed], [1]).toUpdate).toEqual([changed]);
@@ -263,5 +272,55 @@ describe("경품 표 순서", () => {
     it("빈 목록이면 빈 목록", () => {
       expect(assignPrizeSorts([])).toEqual([]);
     });
+  });
+});
+
+// spec 3.4 「우측 패널」, A-26. 이슈 #5
+describe("당첨 현황 줄 (winnersPanelRows)", () => {
+  // 콘솔 표 순서: 첫 줄(sort 1)을 가장 먼저 뽑는다. 이름에 적힌 등수는 읽지 않는다.
+  const P = (id: number, sort: number, winnerCount: number, name = `경품${id}`) => ({ id, name, winnerCount, sort });
+  const prizes = [P(1, 1, 20, "소형 안마기"), P(2, 2, 5, "태블릿"), P(3, 3, 1, "노트북")];
+  const confirmed = (prizeId: number, participantNos: number[]) => ({ prizeId, participantNos });
+
+  it("1등이 맨 위. 등수는 추첨 순서를 거꾸로 센 값이다", () => {
+    expect(winnersPanelRows(prizes, []).map((r) => [r.id, r.rank])).toEqual([
+      [3, 1],
+      [2, 2],
+      [1, 3],
+    ]);
+  });
+
+  it("받은 배열 순서가 아니라 sort 로 등수를 매긴다", () => {
+    const shuffled = [prizes[2], prizes[0], prizes[1]];
+    expect(winnersPanelRows(shuffled, []).map((r) => [r.id, r.rank])).toEqual([
+      [3, 1],
+      [2, 2],
+      [1, 3],
+    ]);
+  });
+
+  it("경품 5개 중 두 번째로 뽑는 경품은 4등", () => {
+    const five = [1, 2, 3, 4, 5].map((n) => P(n, n, 1));
+    expect(winnersPanelRows(five, []).find((r) => r.id === 2)?.rank).toBe(4);
+  });
+
+  it("차례가 오지 않은 경품은 이름과 번호가 없고, 인원은 경품의 당첨 인원이다", () => {
+    expect(winnersPanelRows(prizes, []).find((r) => r.id === 3)).toEqual({ id: 3, rank: 1, name: null, count: 1, nos: null });
+  });
+
+  it("지금 뽑는 경품은 확정 전(경품 소개 단계)부터 이름이 보이고, 번호는 아직 없다 (10/22)", () => {
+    const rows = winnersPanelRows(prizes, [], 2);
+    expect(rows.find((r) => r.id === 2)).toEqual({ id: 2, rank: 2, name: "태블릿", count: 5, nos: null });
+    expect(rows.find((r) => r.id === 3)?.name).toBeNull();
+  });
+
+  it("확정되면 이름과 번호가 붙고, 인원은 확정된 번호 수다. 번호는 작은 것부터", () => {
+    const rows = winnersPanelRows(prizes, [confirmed(1, [17, 3, 250])]);
+    expect(rows.find((r) => r.id === 1)).toEqual({ id: 1, rank: 3, name: "소형 안마기", count: 3, nos: [3, 17, 250] });
+    expect(rows.find((r) => r.id === 2)?.name).toBeNull();
+  });
+
+  it("경품이 없으면 빈 목록", () => {
+    expect(winnersPanelRows([], [])).toEqual([]);
   });
 });

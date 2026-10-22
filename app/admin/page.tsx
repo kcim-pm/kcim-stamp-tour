@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { requireAdminPage } from "@/lib/admin-session";
 import { AdminConsole } from "./_components/admin-console";
+import { DrawSettingsPanel } from "./_components/draw-settings-panel";
 import { LogoutButton } from "./_components/logout-button";
 import { OpenDrawButton } from "./_components/open-draw-button";
 import { PrizeEditor } from "./_components/prize-editor";
@@ -28,10 +29,14 @@ export default async function AdminPage() {
           <a className="btn-ghost" href="/api/admin/export">
             CSV 내려받기
           </a>
+          <Link className="btn-ghost" href="/admin/manual">
+            운영자 가이드
+          </Link>
           <LogoutButton />
         </nav>
       </header>
       <AdminConsole />
+      <DrawSettingsPanel />
       <PrizeEditor />
     </main>
   );

@@ -42,3 +42,8 @@ export function buildStatus(
     completed: isCompleted(visitedCount, zoneCount),
   };
 }
+
+// QR 화면에서 이 구역을 이미 인증했는지. 현황이 없으면 거짓이다 (spec 3.2 번호 입력 카드)
+export function isZoneVisited(status: ParticipantStatus | null, zoneCode: string): boolean {
+  return status?.zones.some((z) => z.code === zoneCode && z.visited) ?? false;
+}

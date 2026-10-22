@@ -64,6 +64,7 @@ export type DrawWithWinners = {
   winners: { participant_no: number; status: WinnerStatus }[];
 };
 
+// prizes.image_url 열은 DB 에 남아 있지만 읽지 않는다 (경품 사진 삭제, 10/22).
 const DRAW_COLUMNS =
   "id, prize_id, winner_count, exclude_previous, status, created_at, confirmed_at, " +
   "prize:prizes(id, name), winners:draw_winners(participant_no, status)";
