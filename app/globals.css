@@ -392,19 +392,8 @@ button, input { font-family: inherit; }
 .prize-title__name { margin: 0; font-size: clamp(22px, 2.8vw, 48px); font-weight: 900; line-height: 1.1; }
 .prize-title__count { margin-left: 0.6vw; font-size: clamp(14px, 1.7vw, 30px); font-weight: 900; color: var(--point); white-space: nowrap; }
 
-/* 숫자 릴 (추첨 중). 띠 하나에 숫자 둘. 위 숫자가 나가는 동안 아래 숫자가 올라온다. */
-.reel { margin: 0; display: inline-flex; gap: 0.3vw; font-size: clamp(100px, 16vw, 300px); font-weight: 900; line-height: 1; letter-spacing: -0.05em; font-variant-numeric: tabular-nums; }
-.reel__col { display: inline-block; width: 0.62em; height: 1em; overflow: clip; }
-.reel__strip { display: flex; flex-direction: column; align-items: center; will-change: transform; }
-.reel__digit { display: block; height: 1em; }
-@media (prefers-reduced-motion: no-preference) {
-  .reel__strip { animation: reel-pass 0.16s linear infinite; }
-  .reel__col:nth-child(2) .reel__strip { animation-delay: -0.05s; }
-  .reel__col:nth-child(3) .reel__strip { animation-delay: -0.11s; }
-}
-@keyframes reel-pass { from { transform: translateY(0); } to { transform: translateY(-1em); } }
-
-/* 당첨 번호. 상자 없이 숫자만. 크기(--size)와 열 수(--cols)는 lib/winner-layout.ts 가 인원에 따라 정한다. */
+/* 당첨 번호. 상자 없이 숫자만. 크기(--size)와 열 수(--cols)는 lib/winner-layout.ts 가 인원에 따라 정한다.
+   번호마다 세 자리 릴이다(D-23). 추첨 중에는 자릿수 띠가 돌고(is-spinning), 차례가 오면 값까지 감속해 멈춘다(is-settling). */
 /* --size 는 단위 없는 숫자(1280px 폭 기준 px). 숫자 × vw 로 화면 폭에 비례시킨다 (px × vw 는 CSS 에서 계산되지 않는다). */
 .winners { --size: 72; --cols: 5; width: 100%; font-size: calc(var(--size) * 100vw / 1280); font-weight: 900; line-height: 1.1; letter-spacing: -0.05em; font-variant-numeric: tabular-nums; }
 .winners--grid { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: 1.6vh 1vw; justify-items: center; }
@@ -419,16 +408,26 @@ button, input { font-family: inherit; }
 .winner:focus-visible { outline: 0.04em solid var(--accent); outline-offset: 0.04em; }
 .winner[aria-pressed="true"] { background: #ed5c00; color: #fff; }
 .winner.is-new { color: var(--point); }
-/* 자릿수마다 0~9 띠를 두고 값(--d)까지 굴러 들어온다. 줄어든 움직임 환경에서는 바로 값으로 선다. */
+/* 자릿수 칸. 세 자리 모두 같은 폭이라 돌 때와 멈췄을 때 자리가 흔들리지 않는다. */
 .winner__digits { display: inline-flex; }
-.winner__col { display: inline-block; height: 1em; overflow: clip; }
-.winner__strip { display: flex; flex-direction: column; transform: translateY(calc(var(--d) * -1em)); }
+.winner__col { display: inline-block; width: 0.62em; height: 1em; overflow: clip; text-align: center; }
+.winner__strip { display: flex; flex-direction: column; align-items: center; will-change: transform; }
 .winner__strip > span { height: 1em; display: block; }
+/* 멈춘 띠: 0~9 두 벌 중 값(--d)에 선다. 줄어든 움직임 환경에서는 돌지도 감속하지도 않고 바로 값에 선다. */
+.winner__strip:not(.is-spinning) { transform: translateY(calc(var(--d) * -1em)); }
 @media (prefers-reduced-motion: no-preference) {
-  .winner:not(.is-in) .winner__strip { transform: translateY(-9em); }
-  .winner.is-in .winner__strip { transition: transform 1100ms cubic-bezier(0.16, 1, 0.3, 1) calc(var(--i) * 70ms); }
-  .winner { opacity: 0; transform: translateY(0.2em); }
-  .winner.is-in { opacity: 1; transform: none; transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1) calc(var(--i) * 70ms), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1) calc(var(--i) * 70ms), background-color 0.14s, color 0.14s; }
+  /* 도는 띠: 숫자가 아래에서 위로 지나가고(한 칸 0.08초), 자릿수끼리 박자가 어긋난다 */
+  .winner__strip.is-spinning { animation: reel-pass 0.08s linear infinite; }
+  .winner__col:nth-child(2) .winner__strip.is-spinning { animation-delay: -0.025s; }
+  .winner__col:nth-child(3) .winner__strip.is-spinning { animation-delay: -0.055s; }
+  /* 감속해 멈추는 띠: 돌 때와 같은 방향(위)으로 한 바퀴(10칸) 더 올라가 두 번째 벌의 값에 선다.
+     시간은 lib/winner-layout.ts REEL_STOP_MS 와 같아야 한다 */
+  .winner__strip.is-settling { animation: reel-settle 600ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+}
+@keyframes reel-pass { from { transform: translateY(0); } to { transform: translateY(-1em); } }
+@keyframes reel-settle {
+  from { transform: translateY(calc(var(--d) * -1em)); }
+  to { transform: translateY(calc((var(--d) + 10) * -1em)); }
 }
 
 /* 종료 화면. 가운데는 선물 Lottie, 색종이는 참가자 완주 카드의 .confetti 를 프로젝터 크기로 키운다. */

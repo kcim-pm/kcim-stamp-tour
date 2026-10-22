@@ -18,19 +18,18 @@ import { adminFetch, errorMessage } from "@/lib/admin-fetch";
 import type { DrawResponse, PrizeResponse } from "@/lib/admin-query";
 import { isActionAllowed, keyToAction, type DrawAction, type DrawPhase, type KeyContext } from "@/lib/draw-keys";
 import { currentPrize } from "@/lib/draw-state";
-import { winnerDisplayOrder } from "@/lib/winner-layout";
+import { reelTotalMs, winnerDisplayOrder } from "@/lib/winner-layout";
 import { useDrawSettings } from "../../_components/use-draw-settings";
 import { OperatorPanel } from "./operator-panel";
 import { PrizeIntro, PrizeTitle } from "./prize-title";
-import { Reel } from "./reel";
 import { WinnerNumbers } from "./winner-numbers";
 import { WinnersPanel } from "./winners-panel";
 
 type DrawsResponse = { draws: DrawResponse[]; candidateCount: number; completedCount: number };
 
 // 연출 시간. 결과는 서버가 이미 정했고 릴은 그것을 보여 줄 뿐이다 (A-14).
-const SPIN_MS = 3000;
-const HIGHLIGHT_MS = 2500;
+// 릴이 도는 시간과 멈추는 일정은 lib/winner-layout.ts(reelTotalMs)가 인원에 따라 정한다 (D-23).
+const HIGHLIGHT_MS = 1500; // 재추첨 번호가 멈춘 뒤 강조색을 유지하는 시간
 const TICK_MS = 120;
 
 export function DrawScreen() {
@@ -87,18 +86,20 @@ export function DrawScreen() {
 
   // ── 연출 ───────────────────────────────────────────
   // 연출 중인지는 화면에만 기억하므로 도중에 새로고침하면 연출 없이 결과(임시) 단계가 나온다.
+  // 칸이 하나씩 멈추므로 전체 시간은 인원에 비례한다 (20명이면 약 52초).
+  const pendingCount = pendingDraw?.winners.length ?? 1;
   useEffect(() => {
     if (!animating) return;
     const ticker = setInterval(() => sound.tick(), TICK_MS);
     const end = setTimeout(() => {
       setAnimating(false);
       sound.chime();
-    }, SPIN_MS);
+    }, reelTotalMs(pendingCount));
     return () => {
       clearInterval(ticker);
       clearTimeout(end);
     };
-  }, [animating, sound]);
+  }, [animating, sound, pendingCount]);
 
   // ── 조작 ───────────────────────────────────────────
   const replaceDraw = (draw: DrawResponse) =>
@@ -159,7 +160,8 @@ export function DrawScreen() {
         const added = draw.winners.map((w) => w.participantNo).filter((no) => !before.has(no));
         setFresh(new Set(added));
         setRedraws((r) => ({ ...r, [draw.id]: [...(r[draw.id] ?? []), added] }));
-        setTimeout(() => setFresh(new Set()), HIGHLIGHT_MS);
+        // 새 번호는 돌다가 멈춘 뒤 잠깐 강조한다.
+        setTimeout(() => setFresh(new Set()), reelTotalMs(added.length) + HIGHLIGHT_MS);
       },
     );
   }
@@ -248,15 +250,17 @@ export function DrawScreen() {
             <>
               <PrizeTitle prize={shownPrize} count={shownCount} />
               <div className="draw-stage__body">
-                {phase === "drawing" && <Reel />}
-                {/* 결과(임시)와 확정은 같은 컴포넌트 자리에 둔다. 확정할 때 추가 모션 없이 우측 당첨 현황에 번호만 추가된다. */}
-                {(phase === "result" || phase === "confirmed") && shownDraw && (
+                {/* 추첨 중·결과(임시)·확정은 같은 컴포넌트 자리에 둔다. 추첨 중에 돌기 시작한 릴이 결과 단계로 넘어가도
+                    같은 컴포넌트(참가번호 key)로 남아 일정대로 멈추고, 확정할 때 추가 모션 없이 우측 당첨 현황에 번호만 추가된다. */}
+                {shownDraw && (
                   <WinnerNumbers
-                    nos={nos(shownDraw, phase === "result" ? "pending" : "confirmed")}
+                    nos={nos(shownDraw, phase === "confirmed" ? "confirmed" : "pending")}
+                    animate={phase === "drawing"}
                     selected={phase === "result" ? selected : undefined}
                     fresh={phase === "result" ? fresh : undefined}
                     disabled={phase !== "result" || busy}
                     onToggle={phase === "result" ? toggleSelect : undefined}
+                    onDigitStop={sound.clack}
                   />
                 )}
               </div>
@@ -294,7 +298,7 @@ const FINISH_CONFETTI = [
   { left: "92%", bottom: "13%", bg: "#00A8C0", delay: "0.45s" },
 ];
 
-function FinishScreen() {
+export function FinishScreen() {
   return (
     <div className="draw-finish">
       {FINISH_CONFETTI.map((p, i) => (
@@ -347,6 +351,8 @@ function useSound() {
       }
     },
     tick: () => beep(1200, 25, 0.04),
+    // 자릿수 하나가 멈추기 시작할 때. 틱보다 낮고 짧게 「탁」
+    clack: () => beep(330, 70, 0.1),
     chime() {
       beep(880, 300, 0.15);
       beep(1320, 500, 0.15, 150);

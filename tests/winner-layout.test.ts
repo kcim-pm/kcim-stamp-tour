@@ -1,5 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { winnerDisplayOrder, winnerEnterOrder, winnerLayout } from "../lib/winner-layout";
+import {
+  REEL_DIGIT_GAP_MS,
+  REEL_SLOT_GAP_MS,
+  REEL_SPIN_MS,
+  REEL_STOP_MS,
+  padNo,
+  reelStopAt,
+  reelTotalMs,
+  winnerDisplayOrder,
+  winnerEnterOrder,
+  winnerLayout,
+} from "../lib/winner-layout";
 
 // 당첨 번호의 크기와 배치는 인원에 따라 달라진다 (spec 3.4 「당첨 번호 배치」, 안 A).
 describe("winnerLayout", () => {
@@ -73,5 +84,51 @@ describe("winnerEnterOrder", () => {
 
   it("한 번에 여러 개면 그 묶음 안에서만 0, 1, 2…", () => {
     expect(winnerEnterOrder([3, 17, 8, 250], new Set([8, 250]))).toEqual([0, 1, 0, 1]);
+  });
+});
+
+// 무대의 릴은 세 자리 고정이라 번호 앞을 0 으로 채운다 (spec 3.4 「추첨 중」, 마케팅팀 피드백 10/22).
+describe("padNo", () => {
+  it("한 자리·두 자리 번호는 앞을 0 으로 채우고, 세 자리는 그대로", () => {
+    expect(padNo(3)).toBe("003");
+    expect(padNo(64)).toBe("064");
+    expect(padNo(132)).toBe("132");
+    expect(padNo(999)).toBe("999");
+  });
+});
+
+// 릴이 멈추는 일정 (spec 3.4 「추첨 중」). 첫 릴이 돈 뒤 첫 칸부터 하나씩, 칸 안에서는 백→십→일 순으로 멈춘다.
+// 한 칸이 다 멈추면 번호를 발표할 시간을 두고 다음 칸이 멈추기 시작한다.
+describe("reelStopAt", () => {
+  it("첫 칸의 백의 자리는 첫 릴 시간이 지난 뒤 멈춘다", () => {
+    expect(reelStopAt(0, 0)).toBe(REEL_SPIN_MS);
+  });
+
+  it("같은 칸 안에서는 자릿수 간격만큼 늦게 멈춘다", () => {
+    expect(reelStopAt(0, 1)).toBe(REEL_SPIN_MS + REEL_DIGIT_GAP_MS);
+    expect(reelStopAt(0, 2)).toBe(REEL_SPIN_MS + 2 * REEL_DIGIT_GAP_MS);
+  });
+
+  it("다음 칸은 앞 칸의 일의 자리가 다 멈춘 뒤 발표 간격이 지나서 멈추기 시작한다", () => {
+    const slotDuration = 2 * REEL_DIGIT_GAP_MS + REEL_STOP_MS;
+    expect(reelStopAt(1, 0)).toBe(REEL_SPIN_MS + slotDuration + REEL_SLOT_GAP_MS);
+    expect(reelStopAt(2, 0)).toBe(REEL_SPIN_MS + 2 * (slotDuration + REEL_SLOT_GAP_MS));
+  });
+
+  it("값은 마케팅팀 피드백(첫 릴 1.5초, 발표 간격 1초, 자릿수 간격 0.5초)이다", () => {
+    expect(REEL_SPIN_MS).toBe(1500);
+    expect(REEL_SLOT_GAP_MS).toBe(1000);
+    expect(REEL_DIGIT_GAP_MS).toBe(500);
+  });
+});
+
+describe("reelTotalMs", () => {
+  it("마지막 칸의 일의 자리가 멈추고 감속이 끝나는 시각이다", () => {
+    expect(reelTotalMs(1)).toBe(reelStopAt(0, 2) + REEL_STOP_MS);
+    expect(reelTotalMs(20)).toBe(reelStopAt(19, 2) + REEL_STOP_MS);
+  });
+
+  it("0명이나 음수는 1명과 같게 다룬다", () => {
+    expect(reelTotalMs(0)).toBe(reelTotalMs(1));
   });
 });
