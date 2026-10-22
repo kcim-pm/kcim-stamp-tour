@@ -384,12 +384,15 @@ button, input { font-family: inherit; }
 /* 경품 소개 (준비 단계): 이름 크게 + N명 추첨. 경품 사진은 보여 주지 않는다 (10/22) */
 .prize-intro { flex: 1; min-height: 0; width: 100%; display: flex; align-items: center; justify-content: center; text-align: center; }
 .prize-intro__text { min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2.4vh; }
-.prize-intro__name { margin: 0; font-size: clamp(32px, 5vw, 96px); font-weight: 900; line-height: 1.05; letter-spacing: -0.02em; }
+/* 경품 이름은 어절(띄어쓰기) 단위로만 줄을 바꾼다. 한국어 기본값은 글자 사이 어디서나 끊겨 「월 / 드)」처럼 갈라진다.
+   띄어쓰기 없는 아주 긴 이름은 넘치지 않도록 그때만 글자 단위로 끊는다(overflow-wrap).
+   두 줄이 되면 길이를 고르게 나눠(text-wrap: balance) 「라세느 2인 식사권 / (롯데호텔 월드)」처럼 괄호 묶음이 통째로 내려오게 한다. */
+.prize-intro__name { margin: 0; font-size: clamp(32px, 5vw, 96px); font-weight: 900; line-height: 1.05; letter-spacing: -0.02em; word-break: keep-all; overflow-wrap: anywhere; text-wrap: balance; }
 .prize-intro__count { display: flex; align-items: baseline; gap: 0.6vw; color: var(--point); font-size: clamp(16px, 1.7vw, 30px); font-weight: 900; }
 .prize-intro__count span { font-size: clamp(32px, 3.4vw, 64px); line-height: 1; }
 /* 경품 타이틀 (추첨 중·결과): 같은 내용을 작게, 무대 위쪽 왼쪽에 붙인다 (10/22) */
 .prize-title { display: flex; align-items: center; gap: 1.4vw; align-self: flex-start; text-align: left; }
-.prize-title__name { margin: 0; font-size: clamp(22px, 2.8vw, 48px); font-weight: 900; line-height: 1.1; }
+.prize-title__name { margin: 0; font-size: clamp(22px, 2.8vw, 48px); font-weight: 900; line-height: 1.1; word-break: keep-all; overflow-wrap: anywhere; }
 .prize-title__count { margin-left: 0.6vw; font-size: clamp(14px, 1.7vw, 30px); font-weight: 900; color: var(--point); white-space: nowrap; }
 
 /* 당첨 번호. 상자 없이 숫자만. 크기(--size)와 열 수(--cols)는 lib/winner-layout.ts 가 인원에 따라 정한다.
@@ -453,7 +456,7 @@ button, input { font-family: inherit; }
 }
 .winners-panel h2 { margin: 0; font-size: clamp(16px, 1.5vw, 24px); font-weight: 900; }
 .panel-prize { display: flex; flex-direction: column; gap: 0.8vh; }
-.panel-prize h3 { margin: 0; font-size: clamp(13px, 1.1vw, 18px); font-weight: 900; color: var(--ink); }
+.panel-prize h3 { margin: 0; font-size: clamp(13px, 1.1vw, 18px); font-weight: 900; color: var(--ink); word-break: keep-all; overflow-wrap: anywhere; }
 .panel-prize.is-waiting h3 { color: var(--muted-2); font-weight: 500; }
 .panel-prize.is-current { padding: 1vh 0.8vw; border-radius: 10px; background: var(--accent-soft); }
 .panel-prize.is-current h3 { color: var(--accent-deep); font-weight: 700; }
