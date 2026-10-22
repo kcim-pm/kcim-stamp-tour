@@ -23,6 +23,9 @@ type Banner =
 const STORAGE_KEY = "participantNo";
 
 // 경로형 스탬프 배치. 구역 5곳 기준 좌표(px)와 기울기. 구역 수가 다르면 한 줄 배치로 대체한다.
+// 코인 자리는 SVG viewBox(318x214)와 같은 좌표계의 px 값이다. 화면에는 백분율로 바꿔 놓아 트랙이 줄어도 경로 위에 머문다.
+const TRACK_W = 318;
+const TRACK_H = 214;
 const COIN_SLOTS = [
   { left: 2, top: 10, r: -10 },
   { left: 124, top: 92, r: 8 },
@@ -165,7 +168,7 @@ export function ParticipantScreen({ zone, zoneToken }: { zone: ZoneResult; zoneT
           className="input-no"
           inputMode="numeric"
           maxLength={3}
-          placeholder="132"
+          placeholder="801"
           value={input}
           disabled={verified}
           onChange={(e) => setInput(e.target.value)}
@@ -266,7 +269,7 @@ function StampTrack({ zones }: { zones: ZoneStatus[] }) {
     const slot = onPath ? COIN_SLOTS[i] : { left: 0, top: 0, r: [-10, 8, -5, 6, -7][i % 5] };
     const style = {
       "--r": `${slot.r}deg`,
-      ...(onPath ? { left: slot.left, top: slot.top } : {}),
+      ...(onPath ? { left: `${(slot.left / TRACK_W) * 100}%`, top: `${(slot.top / TRACK_H) * 100}%` } : {}),
       animationDelay: z.visited ? `${0.5 + i * 0.2}s` : `${(i * 0.4) % 1.5}s`,
     } as React.CSSProperties;
     const cls = z.visited ? `coin coin-done c${(i % 5) + 1}` : "coin coin-wait";
@@ -281,7 +284,7 @@ function StampTrack({ zones }: { zones: ZoneStatus[] }) {
 
   return (
     <div className="track" aria-label={`${visitedCount}곳 인증 완료`}>
-      <svg viewBox="0 0 318 214" fill="none" aria-hidden="true">
+      <svg viewBox={`0 0 ${TRACK_W} ${TRACK_H}`} fill="none" aria-hidden="true">
         <path d={TRACK_PATH} stroke="#d4ecf5" strokeWidth="14" strokeLinecap="round" />
         <path d={TRACK_PATH} stroke="#ffffff" strokeWidth="6" strokeLinecap="round" />
         {streak > 0 && (
