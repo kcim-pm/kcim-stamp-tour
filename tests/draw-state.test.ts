@@ -304,8 +304,14 @@ describe("당첨 현황 줄 (winnersPanelRows)", () => {
     expect(winnersPanelRows(five, []).find((r) => r.id === 2)?.rank).toBe(4);
   });
 
-  it("확정 전에는 이름과 번호가 없고, 인원은 경품의 당첨 인원이다", () => {
+  it("차례가 오지 않은 경품은 이름과 번호가 없고, 인원은 경품의 당첨 인원이다", () => {
     expect(winnersPanelRows(prizes, []).find((r) => r.id === 3)).toEqual({ id: 3, rank: 1, name: null, count: 1, nos: null });
+  });
+
+  it("지금 뽑는 경품은 확정 전(경품 소개 단계)부터 이름이 보이고, 번호는 아직 없다 (10/22)", () => {
+    const rows = winnersPanelRows(prizes, [], 2);
+    expect(rows.find((r) => r.id === 2)).toEqual({ id: 2, rank: 2, name: "태블릿", count: 5, nos: null });
+    expect(rows.find((r) => r.id === 3)?.name).toBeNull();
   });
 
   it("확정되면 이름과 번호가 붙고, 인원은 확정된 번호 수다. 번호는 작은 것부터", () => {
