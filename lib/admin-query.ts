@@ -60,13 +60,14 @@ export type DrawWithWinners = {
   status: DrawStatus;
   created_at: string;
   confirmed_at: string | null;
-  prize: { id: number; name: string; image_url: string | null };
+  prize: { id: number; name: string };
   winners: { participant_no: number; status: WinnerStatus }[];
 };
 
+// prizes.image_url 열은 DB 에 남아 있지만 읽지 않는다 (경품 사진 삭제, 10/22).
 const DRAW_COLUMNS =
   "id, prize_id, winner_count, exclude_previous, status, created_at, confirmed_at, " +
-  "prize:prizes(id, name, image_url), winners:draw_winners(participant_no, status)";
+  "prize:prizes(id, name), winners:draw_winners(participant_no, status)";
 
 export async function loadDraws(): Promise<DrawWithWinners[]> {
   const { data, error } = await getSupabase().from("draws").select(DRAW_COLUMNS).order("id");
@@ -87,7 +88,7 @@ export const toWinnerRows = (d: DrawWithWinners): WinnerRow[] => d.winners.map((
 
 export type DrawResponse = {
   id: number;
-  prize: { id: number; name: string; imageUrl: string | null };
+  prize: { id: number; name: string };
   winnerCount: number;
   excludePrevious: boolean;
   status: DrawStatus;
@@ -101,7 +102,7 @@ export type DrawResponse = {
 export function toDrawResponse(d: DrawWithWinners): DrawResponse {
   return {
     id: d.id,
-    prize: { id: d.prize.id, name: d.prize.name, imageUrl: d.prize.image_url ?? null },
+    prize: { id: d.prize.id, name: d.prize.name },
     winnerCount: d.winner_count,
     excludePrevious: d.exclude_previous,
     status: d.status,
@@ -136,7 +137,7 @@ export type PrizeResponse = PrizeRecord & { drawn: boolean };
 export async function loadPrizes(): Promise<{ prizes: PrizeRecord[]; drawnIds: number[] }> {
   const supabase = getSupabase();
   const [prizeResult, drawResult] = await Promise.all([
-    supabase.from("prizes").select("id, name, winner_count, sort, image_url").order("sort").order("id"),
+    supabase.from("prizes").select("id, name, winner_count, sort").order("sort").order("id"),
     supabase.from("draws").select("prize_id"),
   ]);
   if (prizeResult.error) throw new DbError(prizeResult.error.message);
@@ -147,7 +148,6 @@ export async function loadPrizes(): Promise<{ prizes: PrizeRecord[]; drawnIds: n
     name: p.name,
     winnerCount: p.winner_count,
     sort: p.sort,
-    imageUrl: (p.image_url as string | null) ?? null,
   }));
   const drawnIds = [...new Set(drawResult.data.map((d) => d.prize_id as number))];
   return { prizes, drawnIds };

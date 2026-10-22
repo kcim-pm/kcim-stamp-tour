@@ -16,11 +16,10 @@ type EditRow = {
   id: number | null;
   name: string;
   winnerCount: string;
-  imageUrl: string; // 발표 화면 경품 소개에 보일 사진 주소. 비우면 자리 표시만 보인다 (D-21)
   sort: number | null; // 서버에서 받은 값. 추첨한 경품은 저장할 때 그대로 보낸다. 새 줄은 null
   drawn: boolean;
 };
-type Field = "name" | "winnerCount" | "imageUrl";
+type Field = "name" | "winnerCount";
 
 let newKeySeq = 0;
 const toEditRow = (p: PrizeResponse): EditRow => ({
@@ -28,7 +27,6 @@ const toEditRow = (p: PrizeResponse): EditRow => ({
   id: p.id,
   name: p.name,
   winnerCount: String(p.winnerCount),
-  imageUrl: p.imageUrl ?? "",
   sort: p.sort,
   drawn: p.drawn,
 });
@@ -41,7 +39,6 @@ function invalidFields(r: EditRow): Field[] {
   const bad: Field[] = [];
   if (r.name.trim() === "") bad.push("name");
   if (!isInt(r.winnerCount) || Number(r.winnerCount) < 1) bad.push("winnerCount");
-  if (r.imageUrl.trim() !== "" && !/^https?:\/\//i.test(r.imageUrl.trim())) bad.push("imageUrl");
   return bad;
 }
 
@@ -88,7 +85,7 @@ export function PrizeEditor() {
   }
 
   function addRow() {
-    changed([...rows, { key: `new${++newKeySeq}`, id: null, name: "", winnerCount: "", imageUrl: "", sort: null, drawn: false }]);
+    changed([...rows, { key: `new${++newKeySeq}`, id: null, name: "", winnerCount: "", sort: null, drawn: false }]);
   }
 
   function removeRow(key: string) {
@@ -117,7 +114,6 @@ export function PrizeEditor() {
       ...(r.id !== null && { id: r.id }),
       name: r.name.trim(),
       winnerCount: Number(r.winnerCount),
-      imageUrl: r.imageUrl.trim() === "" ? null : r.imageUrl.trim(),
       sort: sorts[i],
     }));
     const result = await adminFetch<{ prizes: PrizeResponse[] }>("/api/admin/prizes", { method: "PUT", body: { prizes } });
@@ -149,7 +145,6 @@ export function PrizeEditor() {
       <h2>경품 목록</h2>
       <p className="hint" style={{ margin: 0 }}>
         위에서부터 순서대로 추첨합니다. [↑][↓]로 순서를 바꿉니다. 추첨한 경품은 맨 위에 고정되며 수정할 수 없습니다.
-        사진 주소는 발표 화면의 경품 소개에 보입니다. 비워 두면 자리 표시만 보입니다.
       </p>
       {!loaded ? (
         <div className="empty">{notice?.text ?? "불러오는 중…"}</div>
@@ -163,7 +158,6 @@ export function PrizeEditor() {
                 </th>
                 <th>이름</th>
                 <th style={{ width: 110 }}>당첨 인원</th>
-                <th>사진 주소 (http…)</th>
                 <th className="num" style={{ width: 100 }}>
                   이동
                 </th>
@@ -175,7 +169,7 @@ export function PrizeEditor() {
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="empty">
+                  <td colSpan={5} className="empty">
                     경품이 없습니다
                   </td>
                 </tr>
@@ -188,7 +182,6 @@ export function PrizeEditor() {
                       {r.name} <span className="badge">추첨함</span>
                     </td>
                     <td>{r.winnerCount}명</td>
-                    <td style={{ wordBreak: "break-all", color: "var(--muted)" }}>{r.imageUrl || "—"}</td>
                     <td />
                     <td />
                   </tr>
@@ -197,7 +190,6 @@ export function PrizeEditor() {
                     <td className="num">{i + 1}</td>
                     <td>{input(r, "name", "text")}</td>
                     <td>{input(r, "winnerCount", "number")}</td>
-                    <td>{input(r, "imageUrl", "text")}</td>
                     <td className="num" style={{ whiteSpace: "nowrap" }}>
                       <button
                         className="btn-ghost"
