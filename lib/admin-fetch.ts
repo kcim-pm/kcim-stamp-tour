@@ -50,6 +50,7 @@ const MESSAGES: Record<string, string> = {
   DRAW_PENDING_EXISTS: "확정하지 않은 추첨이 있습니다",
   INVALID_WINNER_COUNT: "당첨 인원은 1 이상의 정수여야 합니다",
   INVALID_WINNER_SELECTION: "선택한 번호를 처리할 수 없습니다. 새로고침해 주세요",
+  NOT_COMPLETED: "완주하지 않은 참가자는 추첨 대상으로 지정할 수 없습니다. 새로고침해 주세요",
 };
 
 // 모르는 코드는 함께 보여 준다. 현장에서 개발자에게 물어볼 때 원인을 바로 알 수 있게.

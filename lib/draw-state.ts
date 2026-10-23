@@ -80,7 +80,8 @@ export function confirmedWinners(winners: WinnerRow[]): WinnerRow[] {
 // 경품 한 줄 (API 이름, camelCase)
 // 등급은 따로 두지 않고 「5등 커피」처럼 이름에 적는다 (DB 에 rank 열은 없다).
 // 경품 사진(imageUrl)은 쓰지 않는다 (10/22 결정). DB 의 image_url 열은 남아 있지만 읽고 쓰지 않는다.
-export type PrizeRecord = { id: number; name: string; winnerCount: number; sort: number };
+// useTargeted: 「대상자 적용」. 켜면 콘솔에서 체크한 완주자를 먼저 뽑는다 (A-27, D-24). 보내지 않으면 false 다.
+export type PrizeRecord = { id: number; name: string; winnerCount: number; sort: number; useTargeted: boolean };
 export type NewPrize = Omit<PrizeRecord, "id">;
 
 export type PrizeChanges = { toInsert: NewPrize[]; toUpdate: PrizeRecord[]; toDelete: number[] };
@@ -94,6 +95,7 @@ function parsePrizeInput(raw: unknown): NewPrize & { id: number | null } {
 
   const name = typeof r.name === "string" ? r.name.trim() : "";
   if (name === "" || !Number.isInteger(r.sort)) throw new Error("INVALID_BODY");
+  if (r.useTargeted !== undefined && typeof r.useTargeted !== "boolean") throw new Error("INVALID_BODY");
 
   let id: number | null = null;
   if (r.id !== undefined && r.id !== null) {
@@ -101,10 +103,11 @@ function parsePrizeInput(raw: unknown): NewPrize & { id: number | null } {
     id = r.id as number;
   }
 
-  return { id, name, winnerCount: r.winnerCount as number, sort: r.sort as number };
+  return { id, name, winnerCount: r.winnerCount as number, sort: r.sort as number, useTargeted: r.useTargeted === true };
 }
 
-const samePrize = (a: NewPrize, b: NewPrize) => a.name === b.name && a.winnerCount === b.winnerCount && a.sort === b.sort;
+const samePrize = (a: NewPrize, b: NewPrize) =>
+  a.name === b.name && a.winnerCount === b.winnerCount && a.sort === b.sort && a.useTargeted === b.useTargeted;
 
 export function splitPrizeChanges(current: PrizeRecord[], submitted: unknown[], drawnPrizeIds: number[]): PrizeChanges {
   const currentById = new Map(current.map((p) => [p.id, p]));

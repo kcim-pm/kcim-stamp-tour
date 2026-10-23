@@ -1,7 +1,7 @@
 "use client";
 
-// 경품 목록 등록·수정 (클라이언트). spec 3.3 「경품 목록」, A-12, D-19
-// 행사 전에 경품(이름, 당첨 인원)을 등록하고 고친다. 등급은 「5등 커피」처럼 이름에 적는다. 추첨은 표의 줄 순서대로 진행된다.
+// 경품 목록 등록·수정 (클라이언트). spec 3.3 「경품 목록」, A-12, A-27, D-19
+// 행사 전에 경품(이름, 당첨 인원, 대상자 적용)을 등록하고 고친다. 등급은 「5등 커피」처럼 이름에 적는다. 추첨은 표의 줄 순서대로 진행된다.
 // 순서 숫자는 입력하지 않는다. [↑][↓]로 줄을 옮기고, 저장할 때 위에서부터 sort 를 매긴다 (assignPrizeSorts).
 // 이미 추첨한 경품은 맨 위에 고정하고 글자로만 보여 준다. 서버도 PRIZE_ALREADY_DRAWN 으로 막지만 화면에서 먼저 막는다.
 // 1분 자동 갱신에는 넣지 않는다. 입력하는 도중에 갱신되면 고치던 값이 덮어써지기 때문이다.
@@ -17,6 +17,7 @@ type EditRow = {
   name: string;
   winnerCount: string;
   sort: number | null; // 서버에서 받은 값. 추첨한 경품은 저장할 때 그대로 보낸다. 새 줄은 null
+  useTargeted: boolean; // 「대상자 적용」. 켜면 참가자 목록에서 체크한 완주자를 먼저 뽑는다 (A-27)
   drawn: boolean;
 };
 type Field = "name" | "winnerCount";
@@ -28,6 +29,7 @@ const toEditRow = (p: PrizeResponse): EditRow => ({
   name: p.name,
   winnerCount: String(p.winnerCount),
   sort: p.sort,
+  useTargeted: p.useTargeted,
   drawn: p.drawn,
 });
 const toEditRows = (prizes: PrizeResponse[]) => orderPrizesForEditing(prizes.map(toEditRow));
@@ -84,8 +86,15 @@ export function PrizeEditor() {
     changed(rows.map((r) => (r.key === key ? { ...r, [field]: value } : r)));
   }
 
+  function toggleTargeted(key: string, useTargeted: boolean) {
+    changed(rows.map((r) => (r.key === key ? { ...r, useTargeted } : r)));
+  }
+
   function addRow() {
-    changed([...rows, { key: `new${++newKeySeq}`, id: null, name: "", winnerCount: "", sort: null, drawn: false }]);
+    changed([
+      ...rows,
+      { key: `new${++newKeySeq}`, id: null, name: "", winnerCount: "", sort: null, useTargeted: false, drawn: false },
+    ]);
   }
 
   function removeRow(key: string) {
@@ -115,6 +124,7 @@ export function PrizeEditor() {
       name: r.name.trim(),
       winnerCount: Number(r.winnerCount),
       sort: sorts[i],
+      useTargeted: r.useTargeted,
     }));
     const result = await adminFetch<{ prizes: PrizeResponse[] }>("/api/admin/prizes", { method: "PUT", body: { prizes } });
     if (result.ok) {
@@ -145,6 +155,7 @@ export function PrizeEditor() {
       <h2>경품 목록</h2>
       <p className="hint" style={{ margin: 0 }}>
         위에서부터 순서대로 추첨합니다. [↑][↓]로 순서를 바꿉니다. 추첨한 경품은 맨 위에 고정되며 수정할 수 없습니다.
+        「대상자 적용」을 켠 경품은 참가자 목록에서 체크한 완주자를 먼저 뽑고, 모자라면 나머지 완주자에서 채웁니다.
       </p>
       {!loaded ? (
         <div className="empty">{notice?.text ?? "불러오는 중…"}</div>
@@ -158,6 +169,9 @@ export function PrizeEditor() {
                 </th>
                 <th>이름</th>
                 <th style={{ width: 110 }}>당첨 인원</th>
+                <th className="num" style={{ width: 110 }}>
+                  대상자 적용
+                </th>
                 <th className="num" style={{ width: 100 }}>
                   이동
                 </th>
@@ -169,7 +183,7 @@ export function PrizeEditor() {
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="empty">
+                  <td colSpan={6} className="empty">
                     경품이 없습니다
                   </td>
                 </tr>
@@ -182,6 +196,7 @@ export function PrizeEditor() {
                       {r.name} <span className="badge">추첨함</span>
                     </td>
                     <td>{r.winnerCount}명</td>
+                    <td className="num">{r.useTargeted ? "적용" : ""}</td>
                     <td />
                     <td />
                   </tr>
@@ -190,6 +205,15 @@ export function PrizeEditor() {
                     <td className="num">{i + 1}</td>
                     <td>{input(r, "name", "text")}</td>
                     <td>{input(r, "winnerCount", "number")}</td>
+                    <td className="num">
+                      <input
+                        type="checkbox"
+                        checked={r.useTargeted}
+                        disabled={saving}
+                        onChange={(e) => toggleTargeted(r.key, e.target.checked)}
+                        aria-label="대상자 적용"
+                      />
+                    </td>
                     <td className="num" style={{ whiteSpace: "nowrap" }}>
                       <button
                         className="btn-ghost"

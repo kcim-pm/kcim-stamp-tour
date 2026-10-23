@@ -2,8 +2,8 @@ import { randomInt } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { requireAdminApi } from "@/lib/admin-session";
 import { apiError, toErrorResponse } from "@/lib/api-error";
-import { loadCandidates, loadDraw, loadDraws, toDrawResponse, toDrawRow, toWinnerRows } from "@/lib/admin-query";
-import { drawWinners, pickRedrawCandidates } from "@/lib/draw";
+import { loadCandidates, loadDraw, loadDraws, loadTargetedNos, toDrawResponse, toDrawRow, toWinnerRows } from "@/lib/admin-query";
+import { drawWinnersWithTargets, pickRedrawCandidates } from "@/lib/draw";
 import { assertPending, assertRedrawSelection } from "@/lib/draw-state";
 import { getSupabase } from "@/lib/supabase-server";
 import { DbError } from "@/lib/status-query";
@@ -42,8 +42,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       candidates,
       draw.winners.map((w) => w.participant_no),
     );
-    // 후보가 0명이면 여기서 던지고 DB 는 바뀌지 않는다.
-    const picked = drawWinners(redrawCandidates, selected.length, randomInt);
+    // 처음 뽑을 때와 같이 「대상자 적용」 경품이면 체크한 후보를 먼저 뽑는다 (A-27). 후보가 0명이면 여기서 던지고 DB 는 바뀌지 않는다.
+    const targetedNos = await loadTargetedNos(draw.prize.use_targeted);
+    const picked = drawWinnersWithTargets(redrawCandidates, targetedNos, selected.length, randomInt);
 
     // 순서: ① 새 번호 추가 → ② 고른 번호를 부재자로. ②가 실패하면 ①만 지우면 재추첨 전 상태로 돌아간다.
     // 되돌리기마저 실패하는 경우는 남는다. 완전히 묶으려면 DB 함수(rpc)가 필요하지만 행사 규모에서는 생략한다.

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { drawWinners, pickCandidates, pickRedrawCandidates } from "../lib/draw";
+import { drawWinners, drawWinnersWithTargets, pickCandidates, pickRedrawCandidates } from "../lib/draw";
 
 // 난수는 고정 함수를 넣는다. Math.random 이나 crypto.randomInt 를 테스트에서 직접 쓰지 않는다.
 const alwaysZero = () => 0;
@@ -96,5 +96,55 @@ describe("무작위 추출", () => {
     const candidates = [1, 2, 3, 4, 5];
     drawWinners(candidates, 3, alwaysZero);
     expect(candidates).toEqual([1, 2, 3, 4, 5]);
+  });
+});
+
+describe("추첨 대상 우선 추출 (A-27, D-24)", () => {
+  // drawWinnersWithTargets(candidates, targetedNos, count, randomInt)
+  // candidates 는 이미 「완주자 − 확정 당첨자」 규칙을 거친 후보다. targetedNos 는 콘솔에서 체크한 번호 전체다.
+  it("체크한 번호가 없으면 drawWinners 와 같다", () => {
+    expect(drawWinnersWithTargets([1, 2, 3, 4, 5], [], 2, alwaysZero)).toEqual(drawWinners([1, 2, 3, 4, 5], 2, alwaysZero));
+  });
+
+  it("체크한 후보가 인원보다 많으면 그 안에서만 뽑는다", () => {
+    const result = drawWinnersWithTargets([1, 2, 3, 4, 5, 6], [2, 4, 6], 2, sequence([1, 0]));
+    expect(result).toHaveLength(2);
+    for (const no of result) expect([2, 4, 6]).toContain(no);
+  });
+
+  it("체크한 후보가 인원과 같으면 전원이 당첨이다", () => {
+    const result = drawWinnersWithTargets([1, 2, 3, 4, 5], [2, 4], 2, alwaysZero);
+    expect([...result].sort((a, b) => a - b)).toEqual([2, 4]);
+  });
+
+  it("체크한 후보가 인원보다 적으면 전원 포함하고 나머지는 체크하지 않은 후보에서 채운다", () => {
+    const result = drawWinnersWithTargets([1, 2, 3, 4, 5], [2], 3, sequence([0, 0, 0]));
+    expect(result).toHaveLength(3);
+    expect(result).toContain(2);
+    expect(new Set(result).size).toBe(3);
+    for (const no of result) expect([1, 2, 3, 4, 5]).toContain(no);
+  });
+
+  it("체크했어도 후보가 아닌 번호(미완주, 제외된 이전 당첨자)는 뽑히지 않는다", () => {
+    const result = drawWinnersWithTargets([1, 2, 3], [2, 9], 3, alwaysZero);
+    expect([...result].sort((a, b) => a - b)).toEqual([1, 2, 3]);
+  });
+
+  it("체크한 후보가 앞에, 채운 번호가 뒤에 온다", () => {
+    const result = drawWinnersWithTargets([1, 2, 3, 4], [3], 2, alwaysZero);
+    expect(result[0]).toBe(3);
+    expect([1, 2, 4]).toContain(result[1]);
+  });
+
+  it("채울 후보가 없으면 체크한 후보만 돌려준다", () => {
+    expect(drawWinnersWithTargets([2, 4], [2, 4], 5, alwaysZero).sort((a, b) => a - b)).toEqual([2, 4]);
+  });
+
+  it("후보가 아예 없으면 NOT_ENOUGH_CANDIDATES", () => {
+    expect(() => drawWinnersWithTargets([], [1], 1, alwaysZero)).toThrow("NOT_ENOUGH_CANDIDATES");
+  });
+
+  it.each([0, -1, 1.5])("count 가 %j 면 INVALID_WINNER_COUNT", (count) => {
+    expect(() => drawWinnersWithTargets([1, 2], [1], count, alwaysZero)).toThrow("INVALID_WINNER_COUNT");
   });
 });

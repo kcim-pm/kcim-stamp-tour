@@ -22,28 +22,10 @@ type Banner =
 
 const STORAGE_KEY = "participantNo";
 
-// 경로형 스탬프 배치. 구역 5곳 기준 좌표(px)와 기울기. 구역 수가 다르면 한 줄 배치로 대체한다.
-// 코인 자리는 SVG viewBox(318x214)와 같은 좌표계의 px 값이다. 화면에는 백분율로 바꿔 놓아 트랙이 줄어도 경로 위에 머문다.
-const TRACK_W = 318;
-const TRACK_H = 214;
-const COIN_SLOTS = [
-  { left: 2, top: 10, r: -10 },
-  { left: 124, top: 92, r: 8 },
-  { left: 248, top: 10, r: -5 },
-  { left: 212, top: 122, r: 6 },
-  { left: 28, top: 142, r: -7 },
-];
-const TRACK_PATH =
-  "M36 44 C 90 44, 110 126, 158 126 S 230 44, 282 44 C 298 44, 298 118, 246 156 S 120 196, 62 176";
-// 찍힌 구간까지의 경로. 마지막으로 찍힌 구역 순서에 따라 잘라 쓴다.
-const TRAIL_BY_COUNT = [
-  "",
-  "M36 44 C 90 44, 110 126, 158 126",
-  "M36 44 C 90 44, 110 126, 158 126 S 230 44, 282 44",
-  "M36 44 C 90 44, 110 126, 158 126 S 230 44, 282 44",
-  "M36 44 C 90 44, 110 126, 158 126 S 230 44, 282 44 C 298 44, 298 118, 246 156",
-  TRACK_PATH,
-];
+// 인증 현황 게이지 치수. 원은 SVG viewBox 기준 px, 칸 간격은 pathLength 100 기준이다.
+const RING_SIZE = 132;
+const RING_R = 54;
+const RING_GAP = 2.5;
 
 export function ParticipantScreen({ zone, zoneToken }: { zone: ZoneResult; zoneToken: string | null }) {
   const [input, setInput] = useState("");
@@ -236,10 +218,10 @@ export function ParticipantScreen({ zone, zoneToken }: { zone: ZoneResult; zoneT
               <span> / {status.zoneCount}</span>
             </div>
           </div>
-          <StampTrack zones={status.zones} />
+          <CourseGauge zones={status.zones} completed={status.completed} />
           {!status.completed && (
-            <div className="hint" style={{ textAlign: "center" }}>
-              {status.zoneCount}곳을 모두 방문 후 인증하면 추첨에 자동 응모됩니다
+            <div className="hint" style={{ textAlign: "center", wordBreak: "keep-all" }}>
+              순서에 상관없이 {status.zoneCount}곳을 인증하면 추첨에 자동 응모됩니다
             </div>
           )}
           {status.completed && (
@@ -254,45 +236,74 @@ export function ParticipantScreen({ zone, zoneToken }: { zone: ZoneResult; zoneT
   );
 }
 
-// 경로형 스탬프. 구역이 5곳이면 S자 경로 위에, 아니면 한 줄로 놓는다.
-function StampTrack({ zones }: { zones: ZoneStatus[] }) {
-  const onPath = zones.length === COIN_SLOTS.length;
+// 인증 현황 게이지 + 구역 타일. 방문 순서를 제한하지 않으므로(P-05) 경로 대신 구역마다 칸 하나를 가진 원형 게이지로 보여 준다.
+// 게이지 칸은 구역 수만큼 고르게 나누고 타일은 한 줄에 3개씩 흘려 놓아, 구역 수가 5곳이 아니어도 그대로 쓴다.
+// 구역 색은 z1~z5 클래스(--zone)로 돌려 쓴다.
+function CourseGauge({ zones, completed }: { zones: ZoneStatus[]; completed: boolean }) {
+  const total = zones.length;
   const visitedCount = zones.filter((z) => z.visited).length;
-  // 찍힌 구간: 앞에서부터 연속으로 찍힌 개수까지만 진하게 칠한다
-  let streak = 0;
-  for (const z of zones) {
-    if (!z.visited) break;
-    streak += 1;
-  }
-
-  const coins = zones.map((z, i) => {
-    const slot = onPath ? COIN_SLOTS[i] : { left: 0, top: 0, r: [-10, 8, -5, 6, -7][i % 5] };
-    const style = {
-      "--r": `${slot.r}deg`,
-      ...(onPath ? { left: `${(slot.left / TRACK_W) * 100}%`, top: `${(slot.top / TRACK_H) * 100}%` } : {}),
-      animationDelay: z.visited ? `${0.5 + i * 0.2}s` : `${(i * 0.4) % 1.5}s`,
-    } as React.CSSProperties;
-    const cls = z.visited ? `coin coin-done c${(i % 5) + 1}` : "coin coin-wait";
-    return (
-      <div key={z.code} className={cls} style={style} title={z.visited ? "인증 완료" : "대기"}>
-        {z.name}
-      </div>
-    );
-  });
-
-  if (!onPath) return <div className="coin-row">{coins}</div>;
+  const segment = total > 0 ? 100 / total : 100;
+  const center = RING_SIZE / 2;
 
   return (
-    <div className="track" aria-label={`${visitedCount}곳 인증 완료`}>
-      <svg viewBox={`0 0 ${TRACK_W} ${TRACK_H}`} fill="none" aria-hidden="true">
-        <path d={TRACK_PATH} stroke="#d4ecf5" strokeWidth="14" strokeLinecap="round" />
-        <path d={TRACK_PATH} stroke="#ffffff" strokeWidth="6" strokeLinecap="round" />
-        {streak > 0 && (
-          <path className="trail" d={TRAIL_BY_COUNT[streak]} stroke="#00A8C0" strokeWidth="4" strokeLinecap="round" />
-        )}
-      </svg>
-      {coins}
+    <div className="course">
+      <div className={completed ? "gauge gauge-done" : "gauge"}>
+        <svg
+          width={RING_SIZE}
+          height={RING_SIZE}
+          viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
+          role="img"
+          aria-label={completed ? `${total}곳 모두 인증` : `${total}곳 중 ${visitedCount}곳 인증`}
+        >
+          {/* 12시 방향에서 시작해 시계 방향으로 구역 순서대로 칸을 놓는다 */}
+          <g transform={`rotate(-90 ${center} ${center})`} fill="none" strokeWidth="12">
+            {zones.map((z, i) => (
+              <circle
+                key={z.code}
+                className={z.visited ? `gauge-seg z${(i % 5) + 1}` : "gauge-seg gauge-seg-wait"}
+                cx={center}
+                cy={center}
+                r={RING_R}
+                pathLength={100}
+                strokeDasharray={`${segment - RING_GAP} ${100 - segment + RING_GAP}`}
+                strokeDashoffset={-i * segment}
+              />
+            ))}
+          </g>
+        </svg>
+        <div className="gauge-center" aria-hidden="true">
+          {completed && <GaugeCheckIcon />}
+          <div className="gauge-count">
+            {visitedCount}
+            <span> / {total}</span>
+          </div>
+          {!completed && <div className="gauge-label">구역 인증</div>}
+        </div>
+      </div>
+
+      <div className="tiles">
+        {zones.map((z, i) => (
+          <div
+            key={z.code}
+            className={z.visited ? `tile tile-done z${(i % 5) + 1}` : `tile tile-wait z${(i % 5) + 1}`}
+            style={z.visited ? { animationDelay: `${0.3 + i * 0.1}s` } : undefined}
+            title={z.visited ? "인증 완료" : "대기"}
+          >
+            {z.visited ? <CheckIcon /> : <span className="tile-dot" />}
+            {z.name}
+          </div>
+        ))}
+      </div>
     </div>
+  );
+}
+
+/* 완주했을 때 게이지 가운데에 두는 큰 체크 */
+function GaugeCheckIcon() {
+  return (
+    <svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m5 12 5 5 9-10" />
+    </svg>
   );
 }
 

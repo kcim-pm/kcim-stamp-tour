@@ -53,3 +53,30 @@ export function drawWinners(candidates: number[], count: number, randomInt: Rand
 
   return shuffled.slice(0, Math.min(count, shuffled.length));
 }
+
+// spec 6장 「추첨 대상 우선」 (A-27, D-24)
+// candidates 는 이미 「완주자 − 확정 당첨자」 규칙을 거친 후보이고, targetedNos 는 콘솔에서 체크한 번호 전체다.
+// 체크했어도 후보가 아닌 번호(미완주, 제외된 이전 당첨자)는 뽑지 않는다.
+//   체크한 후보 ≥ 인원 → 체크한 후보 안에서만 무작위로 뽑는다.
+//   체크한 후보 < 인원 → 체크한 후보 전원을 넣고, 모자라는 수만큼 나머지 후보에서 무작위로 채운다.
+// 체크한 번호가 없으면 drawWinners 와 같다. 돌려주는 순서는 체크한 후보가 앞, 채운 번호가 뒤다.
+export function drawWinnersWithTargets(
+  candidates: number[],
+  targetedNos: number[],
+  count: number,
+  randomInt: RandomInt,
+): number[] {
+  if (!Number.isInteger(count) || count < 1) {
+    throw new Error("INVALID_WINNER_COUNT");
+  }
+  const targeted = new Set(targetedNos);
+  const first = candidates.filter((no) => targeted.has(no));
+  const rest = candidates.filter((no) => !targeted.has(no));
+
+  if (first.length >= count) return drawWinners(first, count, randomInt);
+  if (rest.length === 0) {
+    if (first.length === 0) throw new Error("NOT_ENOUGH_CANDIDATES");
+    return first;
+  }
+  return [...first, ...drawWinners(rest, count - first.length, randomInt)];
+}
