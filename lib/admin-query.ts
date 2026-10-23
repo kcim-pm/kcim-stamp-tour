@@ -60,14 +60,14 @@ export type DrawWithWinners = {
   status: DrawStatus;
   created_at: string;
   confirmed_at: string | null;
-  prize: { id: number; name: string };
+  prize: { id: number; name: string; use_targeted: boolean };
   winners: { participant_no: number; status: WinnerStatus }[];
 };
 
 // prizes.image_url 열은 DB 에 남아 있지만 읽지 않는다 (경품 사진 삭제, 10/22).
 const DRAW_COLUMNS =
   "id, prize_id, winner_count, exclude_previous, status, created_at, confirmed_at, " +
-  "prize:prizes(id, name), winners:draw_winners(participant_no, status)";
+  "prize:prizes(id, name, use_targeted), winners:draw_winners(participant_no, status)";
 
 export async function loadDraws(): Promise<DrawWithWinners[]> {
   const { data, error } = await getSupabase().from("draws").select(DRAW_COLUMNS).order("id");
@@ -129,6 +129,22 @@ export async function loadCandidates(
   return pickCandidates(completed, confirmedNos, excludePrevious);
 }
 
+// ── 추첨 대상 ───────────────────────────────────────  spec 6장 「추첨 대상 우선」, A-27
+// 콘솔에서 체크한 번호 전체. 경품의 use_targeted 가 거짓이면 빈 배열을 돌려줘서 drawWinnersWithTargets 가 보통 추첨과 같아진다.
+// 체크했어도 후보가 아닌 번호는 drawWinnersWithTargets 가 거른다. 999명 이하라 나눠 읽지 않아도 되지만 같은 함수로 읽는다.
+export async function loadTargetedNos(useTargeted: boolean): Promise<number[]> {
+  if (!useTargeted) return [];
+  const rows = await selectAll<{ participant_no: number }>((from, to) =>
+    getSupabase()
+      .from("participants")
+      .select("participant_no")
+      .eq("targeted", true)
+      .order("participant_no")
+      .range(from, to),
+  );
+  return rows.map((r) => r.participant_no);
+}
+
 // ── 경품 목록 ───────────────────────────────────────
 export type PrizeResponse = PrizeRecord & { drawn: boolean };
 
@@ -137,7 +153,7 @@ export type PrizeResponse = PrizeRecord & { drawn: boolean };
 export async function loadPrizes(): Promise<{ prizes: PrizeRecord[]; drawnIds: number[] }> {
   const supabase = getSupabase();
   const [prizeResult, drawResult] = await Promise.all([
-    supabase.from("prizes").select("id, name, winner_count, sort").order("sort").order("id"),
+    supabase.from("prizes").select("id, name, winner_count, sort, use_targeted").order("sort").order("id"),
     supabase.from("draws").select("prize_id"),
   ]);
   if (prizeResult.error) throw new DbError(prizeResult.error.message);
@@ -148,6 +164,7 @@ export async function loadPrizes(): Promise<{ prizes: PrizeRecord[]; drawnIds: n
     name: p.name,
     winnerCount: p.winner_count,
     sort: p.sort,
+    useTargeted: p.use_targeted,
   }));
   const drawnIds = [...new Set(drawResult.data.map((d) => d.prize_id as number))];
   return { prizes, drawnIds };
@@ -168,6 +185,7 @@ export type ParticipantRow = {
   visits: Record<string, string | null>; // 키는 구역 code
   visitedAt: (string | null)[]; // zones 순서와 같다. CSV 열이 밀리지 않게
   completed: boolean;
+  targeted: boolean; // 콘솔 「추첨 대상」 체크 (A-27)
   wins: ParticipantWin[]; // 확정 당첨만, 경품 순서대로
 };
 
@@ -182,8 +200,8 @@ export async function loadParticipantRows(): Promise<{ zones: ZoneColumn[]; rows
   const supabase = getSupabase();
   const [zones, participants, visits, wins] = await Promise.all([
     loadZones(),
-    selectAll<{ participant_no: number }>((from, to) =>
-      supabase.from("participants").select("participant_no").order("participant_no").range(from, to),
+    selectAll<{ participant_no: number; targeted: boolean }>((from, to) =>
+      supabase.from("participants").select("participant_no, targeted").order("participant_no").range(from, to),
     ),
     selectAll<{ participant_no: number; zone_id: number; visited_at: string }>((from, to) =>
       supabase
@@ -218,7 +236,7 @@ export async function loadParticipantRows(): Promise<{ zones: ZoneColumn[]; rows
     winsByNo.set(w.participant_no, list);
   }
 
-  const rows = participants.map(({ participant_no: no }) => {
+  const rows = participants.map(({ participant_no: no, targeted }) => {
     const visited = visitsByNo.get(no) ?? new Map<number, string>();
     const visitedAt = zones.map((z) => visited.get(z.id) ?? null);
     return {
@@ -226,6 +244,7 @@ export async function loadParticipantRows(): Promise<{ zones: ZoneColumn[]; rows
       visits: Object.fromEntries(zones.map((z, i) => [z.code, visitedAt[i]])),
       visitedAt,
       completed: isCompleted(visited.size, zones.length),
+      targeted,
       wins: (winsByNo.get(no) ?? [])
         .sort((a, b) => a.sort - b.sort || a.drawId - b.drawId)
         .map(({ drawId, prizeName }) => ({ drawId, prizeName })),

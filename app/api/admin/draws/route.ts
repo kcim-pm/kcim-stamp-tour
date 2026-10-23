@@ -7,10 +7,11 @@ import {
   loadCompletedNos,
   loadDraw,
   loadDraws,
+  loadTargetedNos,
   toDrawResponse,
   toDrawRow,
 } from "@/lib/admin-query";
-import { drawWinners } from "@/lib/draw";
+import { drawWinnersWithTargets } from "@/lib/draw";
 import { assertCanStartDraw } from "@/lib/draw-state";
 import { getSupabase } from "@/lib/supabase-server";
 import { DbError } from "@/lib/status-query";
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
 
     const { data: prize, error: prizeError } = await supabase
       .from("prizes")
-      .select("id, winner_count")
+      .select("id, winner_count, use_targeted")
       .eq("id", prizeId as number)
       .maybeSingle();
     if (prizeError) throw new DbError(prizeError.message);
@@ -70,8 +71,10 @@ export async function POST(request: NextRequest) {
     // 생략하면 경품 목록의 인원 (A-11). 틀린 값은 drawWinners 가 INVALID_WINNER_COUNT 로 거부한다.
     const count = winnerCount === undefined ? prize.winner_count : winnerCount;
     const candidates = await loadCandidates(draws, excludePrevious);
+    // 경품의 「대상자 적용」이 켜져 있으면 체크한 후보를 먼저 뽑는다 (spec 6장 「추첨 대상 우선」, A-27). 꺼져 있으면 빈 배열이라 보통 추첨과 같다.
     // 후보가 인원보다 적으면 후보 전원, 0명이면 NOT_ENOUGH_CANDIDATES
-    const picked = drawWinners(candidates, count as number, randomInt);
+    const targetedNos = await loadTargetedNos(prize.use_targeted);
+    const picked = drawWinnersWithTargets(candidates, targetedNos, count as number, randomInt);
 
     // 당첨 인원 칸에는 실제로 덜 뽑혔어도 요청한 인원을 남긴다 (spec 5.3)
     const { data: created, error: drawError } = await supabase

@@ -132,15 +132,15 @@ describe("확정 후 당첨자 상태", () => {
 
 describe("경품 목록 변경 내용 나누기", () => {
   // DB 에 경품 두 개가 있다. 「이미 추첨한 경품」이 필요한 사례에서는 경품 1 을 넘긴다.
-  const P1: PrizeRecord = { id: 1, name: "5등 커피", winnerCount: 10, sort: 1 };
-  const P2: PrizeRecord = { id: 2, name: "4등 텀블러", winnerCount: 5, sort: 2 };
+  const P1: PrizeRecord = { id: 1, name: "5등 커피", winnerCount: 10, sort: 1, useTargeted: false };
+  const P2: PrizeRecord = { id: 2, name: "4등 텀블러", winnerCount: 5, sort: 2, useTargeted: false };
   const current = [P1, P2];
 
   describe("정상적으로 나뉘는 경우", () => {
     it("번호 없는 새 경품을 보내면 「추가」 묶음에 들어간다", () => {
       const result = splitPrizeChanges(current, [P1, P2, { name: "2등 태블릿", winnerCount: 1, sort: 3 }], []);
       expect(result).toEqual({
-        toInsert: [{ name: "2등 태블릿", winnerCount: 1, sort: 3 }],
+        toInsert: [{ name: "2등 태블릿", winnerCount: 1, sort: 3, useTargeted: false }],
         toUpdate: [],
         toDelete: [],
       });
@@ -185,6 +185,32 @@ describe("경품 목록 변경 내용 나누기", () => {
     });
   });
 
+  describe("대상자 적용(useTargeted, A-27)", () => {
+    it("useTargeted 를 보내지 않으면 false 로 본다 (예전 콘솔)", () => {
+      const { useTargeted: _omit, ...withoutFlag } = P2;
+      void _omit;
+      expect(splitPrizeChanges(current, [P1, withoutFlag], [])).toEqual({ toInsert: [], toUpdate: [], toDelete: [] });
+    });
+
+    it("useTargeted 만 바뀌어도 「수정」 묶음에 들어간다", () => {
+      const changed = { ...P2, useTargeted: true };
+      expect(splitPrizeChanges(current, [P1, changed], []).toUpdate).toEqual([changed]);
+    });
+
+    it("새 경품의 useTargeted 도 그대로 들어간다", () => {
+      const result = splitPrizeChanges(current, [P1, P2, { name: "2등 태블릿", winnerCount: 1, sort: 3, useTargeted: true }], []);
+      expect(result.toInsert).toEqual([{ name: "2등 태블릿", winnerCount: 1, sort: 3, useTargeted: true }]);
+    });
+
+    it("useTargeted 가 참·거짓이 아니면 INVALID_BODY", () => {
+      expect(() => splitPrizeChanges(current, [P1, { ...P2, useTargeted: "yes" }], [])).toThrow("INVALID_BODY");
+    });
+
+    it("이미 추첨한 경품의 useTargeted 를 바꾸면 PRIZE_ALREADY_DRAWN", () => {
+      expect(() => splitPrizeChanges(current, [{ ...P1, useTargeted: true }, P2], [1])).toThrow("PRIZE_ALREADY_DRAWN");
+    });
+  });
+
   describe("이미 추첨한 경품을 바꾸면 PRIZE_ALREADY_DRAWN", () => {
     it.each([
       ["이름", { name: "5등 아이스커피" }],
@@ -214,7 +240,7 @@ describe("경품 목록 변경 내용 나누기", () => {
 
     it("등급(rank)을 보내도 저장 내용에 넣지 않는다 (DB 에 없는 열)", () => {
       const result = splitPrizeChanges(current, [P1, P2, { rank: 2, name: "2등 태블릿", winnerCount: 1, sort: 3 }], []);
-      expect(result.toInsert).toEqual([{ name: "2등 태블릿", winnerCount: 1, sort: 3 }]);
+      expect(result.toInsert).toEqual([{ name: "2등 태블릿", winnerCount: 1, sort: 3, useTargeted: false }]);
     });
 
     it("DB 에 없는 경품 번호를 보내면 INVALID_BODY", () => {
