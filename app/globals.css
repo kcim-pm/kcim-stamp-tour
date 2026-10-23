@@ -40,12 +40,6 @@ button, input { font-family: inherit; }
 
 /* ── 동작 ── */
 @keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
-@keyframes drop {
-  0% { opacity: 0; transform: translateY(-70px) rotate(var(--r)) scale(1.15); }
-  70% { opacity: 1; transform: translateY(6px) rotate(var(--r)) scale(0.97); }
-  100% { transform: translateY(0) rotate(var(--r)) scale(1); }
-}
-@keyframes dash { to { stroke-dashoffset: -48; } }
 @keyframes pop { 0% { transform: scale(0.3); opacity: 0; } 70% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); } }
 @keyframes floatUp { 0% { transform: translateY(0) rotate(0); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateY(-150px) rotate(220deg); opacity: 0; } }
 
@@ -195,48 +189,53 @@ button, input { font-family: inherit; }
 .status-count { font-size: 24px; font-weight: 900; color: var(--point); }
 .status-count span { font-size: 13px; color: var(--muted-2); font-weight: 500; }
 
-/* 경로형 스탬프 (구역 5곳 기준 좌표) */
-/* 코인 좌표는 SVG viewBox(318x214) 기준의 백분율이다. 트랙은 카드 폭에 맞춰 줄어들되 비율(318:214)을 지키므로,
-   좁은 화면에서도 경로와 코인이 함께 작아져 카드 밖으로 튀어나오지 않는다 (10/22). */
-.track { position: relative; width: 100%; max-width: 318px; aspect-ratio: 318 / 214; margin: 0 auto; container-type: inline-size; }
-.track svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-.track .trail { stroke-dasharray: 8 8; animation: dash 1.3s linear infinite; }
+/* 인증 현황 게이지 + 구역 타일 (디자인 캔버스 「코스 후보 C 밝은 배경」). 방문 순서를 제한하지 않으므로 경로 대신
+   구역마다 칸 하나를 가진 원형 게이지를 두고, 그 아래 구역 타일을 한 줄에 3개씩 놓는다. 구역 색은 --zone 으로 돌려 쓴다. */
+.course { display: flex; flex-direction: column; gap: 14px; align-items: center; }
+.z1 { --zone: #ff5c8a; }
+.z2 { --zone: #ffb020; }
+.z3 { --zone: #8b7cff; }
+.z4 { --zone: #35c6ff; }
+.z5 { --zone: #47e58a; }
 
-/* 코인 크기(66px)는 트랙 폭 318px 의 20.75%. 글자는 가운데 정렬, 어절 단위 줄바꿈, 트랙이 줄면 글자도 줄어든다(cqw). */
-.coin {
-  position: absolute;
-  width: 20.75%;
-  aspect-ratio: 1;
-  border-radius: 50%;
+.gauge { position: relative; width: 132px; height: 132px; }
+.gauge svg { display: block; }
+.gauge-seg { stroke: var(--zone); }
+.gauge-seg-wait { stroke: #e5e9f2; }
+/* 완주하면 게이지 둘레가 은은하게 빛난다 */
+.gauge-done svg { filter: drop-shadow(0 4px 10px rgba(71, 229, 138, 0.35)); }
+.gauge-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.gauge-center svg { color: var(--green); }
+.gauge-count { font-size: 34px; font-weight: 900; line-height: 1; color: #1f2937; }
+.gauge-count span { font-size: 14px; font-weight: 500; color: #94a3b8; }
+.gauge-done .gauge-count { font-size: 22px; margin-top: 2px; }
+.gauge-done .gauge-count span { font-size: 12px; }
+.gauge-label { font-size: 10px; font-weight: 700; letter-spacing: 1px; color: #6b7280; margin-top: 4px; }
+
+/* 타일은 항상 한 줄에 3개. 카드가 좁으면 타일이 함께 줄어들고, 마지막 줄은 가운데 모은다 */
+.tiles { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: 100%; }
+.tile {
+  flex: 0 0 calc((100% - 16px) / 3);
+  max-width: 98px;
+  height: 60px;
+  border-radius: 14px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 0 3px;
+  gap: 4px;
+  padding: 0 6px;
   box-sizing: border-box;
   text-align: center;
+  font-size: 11px;
+  font-weight: 700;
   line-height: 1.1;
-  font-weight: 900;
-  /* 「Autodesk」처럼 긴 영단어 하나가 코인 안에 들어가는 크기. 더 길면 그때만 글자 단위로 끊는다 */
-  font-size: clamp(9px, 3.3cqw, 10.5px);
   word-break: keep-all;
-  overflow-wrap: anywhere;
-  transform: rotate(var(--r));
 }
-.coin-done { color: #fff; animation: drop 0.9s cubic-bezier(0.2, 0.9, 0.2, 1.2) both; }
-.coin-wait {
-  background: var(--gray-bg);
-  color: #9bb4c2;
-  box-shadow: inset 4px 4px 8px rgba(25, 61, 82, 0.1), inset -4px -4px 8px #fff;
-}
-.c1 { background: linear-gradient(145deg, #ff8fb1, #ff4d86); box-shadow: inset 3px 3px 6px rgba(255,255,255,0.6), inset -4px -6px 8px rgba(0,0,0,0.15), 0 8px 0 #c2235d, 0 16px 20px rgba(194,35,93,0.35); }
-.c2 { background: linear-gradient(145deg, #ffd36e, #ffab2e); box-shadow: inset 3px 3px 6px rgba(255,255,255,0.6), inset -4px -6px 8px rgba(0,0,0,0.15), 0 8px 0 #c97400, 0 16px 20px rgba(201,116,0,0.35); }
-.c3 { background: linear-gradient(145deg, #8fe3ff, #3fb9ff); box-shadow: inset 3px 3px 6px rgba(255,255,255,0.6), inset -4px -6px 8px rgba(0,0,0,0.15), 0 8px 0 #1576c4, 0 16px 20px rgba(21,118,196,0.35); }
-.c4 { background: linear-gradient(145deg, #b5f5c8, #4dd98a); box-shadow: inset 3px 3px 6px rgba(255,255,255,0.6), inset -4px -6px 8px rgba(0,0,0,0.15), 0 8px 0 #1f9d5e, 0 16px 20px rgba(31,157,94,0.35); }
-.c5 { background: linear-gradient(145deg, #6fd8e6, #00a8c0); box-shadow: inset 3px 3px 6px rgba(255,255,255,0.6), inset -4px -6px 8px rgba(0,0,0,0.15), 0 8px 0 #00788a, 0 16px 20px rgba(0,120,138,0.35); }
-
-/* 구역이 5곳이 아닐 때의 대체 배치. 한 줄 배치에서는 코인 크기를 고정한다 */
-.coin-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; padding: 10px 0; }
-.coin-row .coin { position: static; width: 66px; height: 66px; font-size: 12px; }
+.tile-done { background: var(--zone); color: #141a33; box-shadow: 0 6px 14px color-mix(in srgb, var(--zone) 30%, transparent); animation: pop 0.6s cubic-bezier(0.2, 0.9, 0.2, 1.3) both; }
+.tile-wait { background: #f8fafc; border: 1.5px dashed #cbd5e1; color: #6b7280; }
+/* 대기 타일의 작은 고리. 그 구역이 찍히면 어떤 색이 될지 미리 보여 준다 */
+.tile-dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--zone); box-sizing: border-box; }
 
 /* 완주 배너 (평면). 바탕은 kcim-sky 20% 틴트 */
 .clay {
